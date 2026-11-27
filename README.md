@@ -201,3 +201,35 @@ registrations are traced; timeouts trigger bounded per-phone browser recovery wi
 wiping local authentication or MongoDB backups. Configure WA_READY_TIMEOUT_MS,
 WA_CALLBACK_TIMEOUT_MS, WA_READY_MAX_RETRIES and WA_CLOSE_TIMEOUT_MS in .env.
 See [readiness troubleshooting](docs/readiness-watchdog.md).
+
+### Send a contact card or static location
+
+Use `POST /send` with `x-client-id`, `x-api-key` and `Content-Type: application/json` headers. Existing query-string authentication also works.
+
+**Contact:**
+```json
+{
+  "to": "919000000001",
+  "contact": {
+    "name": "Example Support",
+    "phone": "+919000000002",
+    "organization": "Example Company",
+    "email": "support@example.com"
+  }
+}
+```
+
+**Location:**
+```json
+{
+  "to": "919000000001",
+  "location": {
+    "latitude": 10.0731,
+    "longitude": 78.7802,
+    "name": "Example Office",
+    "address": "Karaikudi, Tamil Nadu"
+  }
+}
+```
+
+Contact requires `name` and international `phone`; `organization` and `email` are optional. A native vCard is sent without editing the address book. Location requires numeric `latitude` (-90 to 90) and `longitude` (-180 to 180); `name`, `address`, and HTTP(S) `url` are optional. Static pins only, not live GPS. Use one payload type per request; invalid or mixed contact/location requests return 400 before sending. Successful responses retain `{ok:true,logId}`; logs use `contact` or `location`. Failed sends return 500 with a log ID; check delivery before retrying. Examples are illustrative; share only authorized information.

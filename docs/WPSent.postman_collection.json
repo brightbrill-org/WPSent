@@ -223,6 +223,68 @@
           }
         },
         {
+          "name": "Send contact card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"contact\": {\n    \"name\": \"Example Support\",\n    \"phone\": \"+919000000002\",\n    \"organization\": \"Example Company\",\n    \"email\": \"support@example.com\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real native WhatsApp contact card. Replace sample details with authorized values."
+          }
+        },
+        {
+          "name": "Send location pin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"location\": {\n    \"latitude\": 10.0731,\n    \"longitude\": 78.7802,\n    \"name\": \"Example Office\",\n    \"address\": \"Karaikudi, Tamil Nadu\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real native WhatsApp static location pin. Replace sample details with authorized values."
+          }
+        },
+        {
           "name": "Add webhook",
           "request": {
             "method": "POST",

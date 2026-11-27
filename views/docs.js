@@ -135,7 +135,7 @@ npm start              # visit http://localhost:3000</pre>
         <tr><td>clientid<span class="req">required</span></td><td>query or header</td><td>Your client ID</td></tr>
         <tr><td>key<span class="req">required</span></td><td>query or header</td><td>Your secret key</td></tr>
         <tr><td>to<span class="req">required</span></td><td>query or body</td><td>Phone number. + and spaces accepted. @lid and @g.us passed as-is.</td></tr>
-        <tr><td>message<span class="req">required</span></td><td>JSON body</td><td>Message text</td></tr>
+        <tr><td>message</td><td>JSON body</td><td>Text, or supply another message type below.</td></tr>
       </tbody>
     </table>
     <pre>curl -X POST "${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
@@ -169,6 +169,30 @@ npm start              # visit http://localhost:3000</pre>
   -H "Content-Type: application/json" \\
   -d '{"document": {"mimetype": "application/pdf", "filename": "invoice.pdf", "data": "JVBERi0xLjc...", "caption": "Invoice"}}'</pre>
 
+    
+    <h3>Contact card</h3>
+    <p>Send one native WhatsApp contact card. <code>contact.name</code> and <code>contact.phone</code> (international number including country code) are required. <code>organization</code> and <code>email</code> are optional. The contact need not be saved; WPSent does not modify the phonebook. Logged as type <code>contact</code>.</p>
+    <pre>{
+  "to": "919000000001",
+  "contact": {
+    "name": "Example Support",
+    "phone": "+919000000002",
+    "organization": "Example Company",
+    "email": "support@example.com"
+  }
+}</pre>
+    <h3>Location pin</h3>
+    <p>Send a static native WhatsApp location. <code>location.latitude</code> and <code>location.longitude</code> must be JSON numbers in ranges -90 to 90 and -180 to 180. Optional <code>name</code>, <code>address</code> and HTTP(S) <code>url</code> describe the pin. This does not send live location or access GPS. Logged as type <code>location</code>.</p>
+    <pre>{
+  "to": "919000000001",
+  "location": {
+    "latitude": 10.0731,
+    "longitude": 78.7802,
+    "name": "Example Office",
+    "address": "Karaikudi, Tamil Nadu"
+  }
+}</pre>
+    <p>Both examples use POST <code>/send</code> with headers <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code>. Replace sample details with authorized values. Use one payload type per request when sending a contact or location. Invalid or mixed payloads return 400; send failures return 500 with a log ID. Verify delivery before retrying.</p>
     <h2 id="logs">Message Logs</h2>
     <p><span class="mt get">GET</span><code>/logs</code> &mdash; last 100 messages, oldest auto-deleted.</p>
     <pre>curl "${host}/logs?clientid=YOUR_CID&key=YOUR_KEY"</pre>

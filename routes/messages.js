@@ -4,6 +4,7 @@ const { MessageLog } = require('./modelAccess');
 const { str, ah } = require('./helpers');
 const { requireKey } = require('./authMiddleware');
 const wa = require('../waManager');
+const { parseShare, materializeShare } = require('../utils/sharePayload');
 
 module.exports = function registerMessages(router) {
   router.post('/send', requireKey, ah(async (req, res) => {
@@ -13,8 +14,19 @@ module.exports = function registerMessages(router) {
 
     let payload, logBody, logType;
 
+    let share;
+    try { share = parseShare(req.body, req.query); }
+    catch (e) {
+      if (e.code === 'INVALID_SHARE_PAYLOAD') return res.status(400).json({ error: e.message });
+      throw e;
+    }
     const doc = req.body?.document;
-    if (doc && typeof doc === 'object' && doc.data && doc.mimetype && doc.filename) {
+    if (share) {
+      const Location = share.type === 'location' ? require('whatsapp-web.js').Location : undefined;
+      payload = materializeShare(share, Location);
+      logBody = share.logBody;
+      logType = share.type;
+    } else if (doc && typeof doc === 'object' && doc.data && doc.mimetype && doc.filename) {
       const { MessageMedia } = require('whatsapp-web.js');
       const data = String(doc.data).replace(/^data:[^;]+;base64,/, '');
       if (!data) return res.status(400).json({ error: 'document.data is required (base64)' });
@@ -33,7 +45,7 @@ module.exports = function registerMessages(router) {
         logType = 'poll';
       } else {
         const message = str(req.body?.message || req.body?.body || req.query.message);
-        if (!message) return res.status(400).json({ error: 'message is required (or provide document / question + options for a poll)' });
+        if (!message) return res.status(400).json({ error: 'message is required (or provide contact / location / document / question + options for a poll)' });
         payload = message;
         logBody = message;
         logType = 'text';
@@ -41,7 +53,7 @@ module.exports = function registerMessages(router) {
     }
 
     let status = 'sent', error = null;
-    try { await wa.sendMessage(req.wpUser.phone, to, payload); }
+    try { await wa.sendMessage(req.wpUser.phone, to, payload, share?.type); }
     catch (e) { status = 'failed'; error = e.message; }
 
     const log = await MessageLog.create({ userId: req.wpUser._id, direction: 'outbound', to, body: logBody, type: logType, status, error });

@@ -130,7 +130,7 @@ function classifyMessage(msg) {
   if (t === 'audio')    return 'audio';
   if (t === 'document') return 'document';
   if (t === 'location') return 'location';
-  if (t === 'vcard')    return 'contact';
+  if (t === 'vcard' || t === 'multi_vcard') return 'contact';
   return 'text';
 }
 
@@ -145,7 +145,7 @@ function extractBody(msg) {
   if (msg.type === 'audio')    return '[Audio]';
   if (msg.type === 'document') return `[Document: ${msg.body || 'file'}]`;
   if (msg.type === 'location') return `[Location: ${msg.location?.latitude || '?'},${msg.location?.longitude || '?'}]`;
-  if (msg.type === 'vcard')    return '[Contact card]';
+  if (msg.type === 'vcard' || msg.type === 'multi_vcard') return '[Contact card]';
   const body = msg.body || msg.caption || msg._data?.body || '';
   return body || `[${msg.type || 'message'}]`;
 }
@@ -496,14 +496,20 @@ function emitLog(userId, log) {
   (logListeners.get(userId) || []).forEach(fn => { try { fn(log); } catch (_) {} });
 }
 
-async function sendMessage(phone, to, body) {
+async function sendMessage(phone, to, body, shareType) {
   if (isPhoneBlocked(phone)) throw new Error('Phone registration revoked');
   const session = sessions.get(phone);
   if (!session || session.status !== 'ready') throw new Error('WhatsApp session not ready');
   const clean = to.includes('@') ? to : sanitizePhone(to) + '@c.us';
   if (!clean || clean === '@c.us') throw new Error('Invalid phone number');
   try {
-    await session.client.sendMessage(clean, body);
+    if (shareType === 'contact' || shareType === 'location') {
+      const sent = await session.client.sendMessage(clean, body, shareType === 'contact' ? { parseVCards: true, waitUntilMsgSent: true } : { waitUntilMsgSent: true });
+      const expected = shareType === 'contact' ? 'vcard' : 'location';
+      if (!sent || sent.type !== expected) throw new Error('WhatsApp did not confirm native ' + shareType + ' message; verify recipient before retrying');
+    } else {
+      await session.client.sendMessage(clean, body);
+    }
   } catch (err) {
     const msg = err?.message || '';
     if (msg.includes('detached Frame') || msg.includes('Target closed') || msg.includes('Session closed')) {
