@@ -5,6 +5,13 @@ const { str, ah } = require('./helpers');
 const { requireKey } = require('./authMiddleware');
 const wa = require('../waManager');
 const { parseShare, materializeShare } = require('../utils/sharePayload');
+const {parseSeen,parseReply}=require('../utils/messageActions');
+
+function actionError(res,e){
+  const status={INVALID_MESSAGE_ACTION:400,WA_NOT_READY:503,WA_ACTION_BUSY:503,WA_ACTION_NOT_FOUND:404,WA_ACTION_TIMEOUT:504,WA_ACTION_FAILED:502}[e.code];
+  if(status)return res.status(status).json({error:e.message});
+  throw e;
+}
 
 module.exports = function registerMessages(router) {
   router.post('/send', requireKey, ah(async (req, res) => {
@@ -62,6 +69,37 @@ module.exports = function registerMessages(router) {
 
     if (status === 'failed') return res.status(500).json({ error, logId: log._id });
     res.json({ ok: true, logId: log._id });
+  }));
+
+  router.post('/seen', requireKey, ah(async(req,res)=>{
+    res.set('Cache-Control','private, no-store');
+    try{
+      const chatId=parseSeen(req.body);
+      return res.json(await wa.markSeen(req.wpUser.phone,chatId));
+    }catch(e){return actionError(res,e);}
+  }));
+
+  router.post('/reply', requireKey, ah(async(req,res)=>{
+    res.set('Cache-Control','private, no-store');
+    let request,result;
+    try{
+      request=parseReply(req.body);
+      result=await wa.replyMessage(req.wpUser.phone,request);
+    }catch(e){return actionError(res,e);}
+    // The send is already complete. Never encourage automatic retry if
+    // persistence fails after WhatsApp has accepted the reply.
+    let log;
+    try{
+      log=await MessageLog.create({userId:req.wpUser._id,direction:'outbound',
+        to:result.chatId,chatId:result.chatId,messageId:result.messageId,
+        replyToMessageId:request.messageId,body:request.message,type:'text',status:'sent'});
+    }catch(e){
+      console.error('[WA] Reply sent but log creation failed:',e.message);
+      return res.json({ok:true,...result,logId:null,warning:'Reply sent; message log could not be saved'});
+    }
+    try{await wa.pruneOldLogs(req.wpUser._id);wa.emitLog(req.wpUser._id.toString(),log.toObject());}
+    catch(e){console.error('[WA] Reply log housekeeping failed:',e.message);}
+    return res.json({ok:true,...result,logId:log._id});
   }));
 
   router.get('/logs', requireKey, ah(async (req, res) => {

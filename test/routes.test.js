@@ -38,6 +38,8 @@ const expected = [
   ['get', '/api/qr-stream', requireDashboard],
   ['get', '/api/logs-stream', requireDashboard],
   ['post', '/send', requireKey],
+  ['post', '/seen', requireKey],
+  ['post', '/reply', requireKey],
   ['get', '/logs', requireKey],
   ['get', '/status', requireKey],
   ['post', '/webhooks', requireKey],
@@ -260,5 +262,31 @@ test('directory unavailable and timeout are explicit HTTP errors',async()=>{
   for(const [code,status] of [['WA_NOT_READY',503],['WA_DIRECTORY_BUSY',503],['WA_DIRECTORY_UNAVAILABLE',503],['WA_DIRECTORY_TIMEOUT',504]]){
     wa.listDirectory=async()=>{throw Object.assign(new Error('test'),{code});};
     const res=lidResponse();await handler({query:{},wpUser:{phone:'owner-a'}},res);assert.equal(res.statusCode,status);
+  }
+});
+
+test('seen and reply routes reject invalid inputs before dispatch',async()=>{
+  for(const [path,body,method] of [['/seen',{chatId:'status@broadcast'},'markSeen'],['/reply',{messageId:'123',message:'test'},'replyMessage']]){
+    wa[method]=()=>assert.fail('invalid request must not dispatch');
+    const handler=router.stack.find(layer=>layer.route?.path===path).route.stack[1].handle;
+    const res=lidResponse();await handler({body,wpUser:{phone:'a'}},res);
+    assert.equal(res.statusCode,400);
+  }
+});
+test('seen route uses owning account and reports success or unavailable session',async()=>{
+  const handler=router.stack.find(layer=>layer.route?.path==='/seen').route.stack[1].handle;
+  wa.markSeen=async(phone,chatId)=>{assert.equal(phone,'a');return {ok:true,chatId,seen:true};};
+  const req={body:{chatId:'919000000001',phone:'other'},wpUser:{phone:'a'}};
+  const res=lidResponse();await handler(req,res);assert.equal(res.body.chatId,'919000000001@c.us');assert.equal(res.body.seen,true);
+  wa.markSeen=async()=>{throw Object.assign(new Error('not ready'),{code:'WA_NOT_READY'});};
+  const bad=lidResponse();await handler(req,bad);assert.equal(bad.statusCode,503);
+});
+test('action docs and Postman contain both authenticated requests',()=>{
+  const docs=docsHTML('https://example.test');
+  assert.ok(docs.includes('/seen'));assert.ok(docs.includes('/reply'));
+  const items=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name==='WhatsApp API').item;
+  for(const [name,path] of [['Mark chat as seen','seen'],['Reply to message','reply']]){
+    const req=items.find(x=>x.name===name).request;
+    assert.equal(req.url,'{{baseUrl}}/'+path);assert.equal(req.method,'POST');assert.doesNotThrow(()=>JSON.parse(req.body.raw));
   }
 });

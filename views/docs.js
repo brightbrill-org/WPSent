@@ -82,6 +82,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#self-host">Self-Hosting</a>
     <h3>API Reference</h3>
     <a href="#send">Send Message</a>
+    <a href="#seen-reply">Mark as seen &amp; reply</a>
     <a href="#logs">Message Logs</a>
     <a href="#status">Status</a>
     <a href="#lid">Resolve LID</a>
@@ -195,6 +196,28 @@ npm start              # visit http://localhost:3000</pre>
   }
 }</pre>
     <p>Both examples use POST <code>/send</code> with headers <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code>. Replace sample details with authorized values. Use one payload type per request when sending a contact or location. Invalid or mixed payloads return 400; send failures return 500 with a log ID. Verify delivery before retrying.</p>
+    <h2 id="seen-reply">Mark as seen and quoted reply</h2>
+    <p>Use existing <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code> headers. Both endpoints require the authenticated account's WhatsApp session to be ready.</p>
+    <h3>Mark chat as seen</h3>
+    <p><span class="mt post">POST</span><code>/seen</code> marks the conversation read (not just one message). Use the original <code>chatId</code> from a new inbound webhook/log, an ID from List Chats, or an international phone number. Group IDs and LIDs are supported.</p>
+    <pre>{ "chatId": "919000000001@c.us" }</pre>
+    <pre>{ "ok": true, "chatId": "919000000001@c.us", "seen": true }</pre>
+    <h3>Reply to a message</h3>
+    <p><span class="mt post">POST</span><code>/reply</code> sends a native quoted text reply in the original conversation. Copy the full WhatsApp <code>messageId</code> from a new inbound webhook/log, not the WPSent <code>logId</code>. The destination is determined from the original message, not the request. Optional boolean <code>markSeen</code> defaults to false; true also marks the conversation as seen during sending.</p>
+    <pre>{
+  "messageId": "false_919000000001@c.us_EXAMPLE123",
+  "message": "Thank you for your message!",
+  "markSeen": false
+}</pre>
+    <pre>{
+  "ok": true,
+  "chatId": "919000000001@c.us",
+  "messageId": "true_919000000001@c.us_EXAMPLE456",
+  "replyToMessageId": "false_919000000001@c.us_EXAMPLE123",
+  "logId": "64f3a1234567890123456789"
+}</pre>
+    <p>New inbound message webhooks/logs expose the original <code>chatId</code> and WhatsApp <code>messageId</code> when available. Webhooks also include <code>logId</code> for every normal inbound message. Older logs are not backfilled; reaction notifications do not supply a reply target. Reply uses the linked account's available original message, with no silent unquoted fallback. Text replies only (max 16000 characters). HTTP 400 invalid request, 401/403 invalid credentials, 404 original message/chat unavailable, 503 session not ready/busy, 504 timeout, 502 unconfirmed action, 500 unexpected error. On uncertain send results, check the actual conversation before retrying to avoid duplicates. If a reply is sent but log creation fails, the successful response includes a warning and null logId. Read receipt visibility is subject to WhatsApp settings.</p>
+
     <h2 id="logs">Message Logs</h2>
     <p><span class="mt get">GET</span><code>/logs</code> &mdash; last 100 messages, oldest auto-deleted.</p>
     <pre>curl "${host}/logs?clientid=YOUR_CID&key=YOUR_KEY"</pre>
