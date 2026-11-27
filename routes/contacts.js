@@ -3,6 +3,7 @@
 const { ah } = require('./helpers');
 const { requireKey } = require('./authMiddleware');
 const wa = require('../waManager');
+const {parseDirectoryQuery}=require('../utils/directory');
 
 module.exports = function registerContacts(router) {
   // Use only the authenticated account's WhatsApp client and its shared cache.
@@ -21,4 +22,19 @@ module.exports = function registerContacts(router) {
       throw e;
     }
   }));
+  for(const kind of ['chats','contacts']){
+    router.get('/'+kind,requireKey,ah(async(req,res)=>{
+      res.set('Cache-Control','private, no-store');
+      try{
+        const query=parseDirectoryQuery(req.query,kind);
+        const result=await wa.listDirectory(req.wpUser.phone,kind,query);
+        return res.json(result);
+      }catch(e){
+        if(e.code==='INVALID_DIRECTORY_QUERY')return res.status(400).json({error:e.message});
+        if(e.code==='WA_NOT_READY'||e.code==='WA_DIRECTORY_BUSY'||e.code==='WA_DIRECTORY_UNAVAILABLE')return res.status(503).json({error:e.message});
+        if(e.code==='WA_DIRECTORY_TIMEOUT')return res.status(504).json({error:e.message});
+        throw e;
+      }
+    }));
+  }
 };

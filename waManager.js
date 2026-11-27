@@ -1,6 +1,7 @@
 const { Client } = require('whatsapp-web.js');
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
+const { createDirectoryReader } = require('./utils/directory');
 const { createInboundCapture } = require('./utils/inboundMedia');
 const inboundMediaStore = require('./services/inboundMediaStore');
 const captureInboundMedia = createInboundCapture({store: inboundMediaStore.store});
@@ -498,6 +499,7 @@ async function resolveLid(phone, lid) {
 }
 
 function getSession(phone) { return sessions.get(phone) || null; }
+const listDirectory = createDirectoryReader({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 function getStatus(phone)  { return sessions.get(phone)?.status || 'not_started'; }
 function getPairedAt(phone) { return pairedAtMap.get(phone) || 0; }
 function getOwnId(phone) {
@@ -598,6 +600,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, resolveLid, restoreAllSessions,
+  onQR, offQR, sendMessage, resolveLid, listDirectory, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

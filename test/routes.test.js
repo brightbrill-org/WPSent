@@ -44,6 +44,8 @@ const expected = [
   ['delete', '/webhooks/:id', requireKey],
   ['patch', '/webhooks/:id', requireKey],
   ['get', '/lid/resolve', requireKey],
+  ['get', '/chats', requireKey],
+  ['get', '/contacts', requireKey],
   ['get', '/admin', null],
   ['post', '/admin/api/signup', requireMutation],
   ['post', '/admin/api/login', requireMutation],
@@ -241,4 +243,22 @@ test('inbound media download scopes lookup to current owner and forces attachmen
   assert.equal(res.headers['Cache-Control'],'private, no-store');
   const missing=lidResponse();await downloadHandler(async()=>null)(request,missing);assert.equal(missing.statusCode,404);
   const invalid=lidResponse();await downloadHandler(()=>assert.fail('invalid id'))({...request,params:{id:'bad'}},invalid);assert.equal(invalid.statusCode,404);
+});
+
+test('directory endpoints validate query, use authenticated account and no-store',async()=>{
+  for(const kind of ['chats','contacts']){
+    const handler=router.stack.find(layer=>layer.route?.path==='/'+kind).route.stack[1].handle;
+    wa.listDirectory=async(phone,k,q)=>{assert.equal(phone,'owner-a');assert.equal(k,kind);assert.equal(q.limit,10);return {ok:true,items:[]};};
+    const res=lidResponse();
+    await handler({query:{limit:'10',phone:'other-account'},wpUser:{phone:'owner-a'}},res);
+    assert.equal(res.statusCode,200);assert.equal(res.headers['Cache-Control'],'private, no-store');
+    const bad=lidResponse();await handler({query:{limit:['10','20']},wpUser:{phone:'owner-a'}},bad);assert.equal(bad.statusCode,400);
+  }
+});
+test('directory unavailable and timeout are explicit HTTP errors',async()=>{
+  const handler=router.stack.find(layer=>layer.route?.path==='/chats').route.stack[1].handle;
+  for(const [code,status] of [['WA_NOT_READY',503],['WA_DIRECTORY_BUSY',503],['WA_DIRECTORY_UNAVAILABLE',503],['WA_DIRECTORY_TIMEOUT',504]]){
+    wa.listDirectory=async()=>{throw Object.assign(new Error('test'),{code});};
+    const res=lidResponse();await handler({query:{},wpUser:{phone:'owner-a'}},res);assert.equal(res.statusCode,status);
+  }
 });
