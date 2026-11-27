@@ -89,6 +89,8 @@ Content-Type: application/json
 ```
 `data` is base64 (optional `data:...;base64,` prefix is stripped). Works for images, PDFs, etc. Logged as type `document`.
 
+Authenticated `POST /send` accepts up to **20 MiB of JSON** by default. Set `WA_SEND_JSON_LIMIT_MB` in `.env` to an integer from 1 to 50 to change this limit (invalid values fall back to 20). Base64 expands binary data by approximately one third, so keep the original file below roughly 15 MiB at the default setting, with additional room for JSON metadata. Send media as `application/json`, not a URL-encoded form. Other endpoints and URL-encoded forms retain the 100 KiB limit. Requests above the configured JSON limit return HTTP 413; reverse-proxy and WhatsApp media limits can be lower.
+
 ### Get logs
 ```
 GET /logs?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY
@@ -201,3 +203,35 @@ registrations are traced; timeouts trigger bounded per-phone browser recovery wi
 wiping local authentication or MongoDB backups. Configure WA_READY_TIMEOUT_MS,
 WA_CALLBACK_TIMEOUT_MS, WA_READY_MAX_RETRIES and WA_CLOSE_TIMEOUT_MS in .env.
 See [readiness troubleshooting](docs/readiness-watchdog.md).
+
+### Send a contact card or static location
+
+Use `POST /send` with `x-client-id`, `x-api-key` and `Content-Type: application/json` headers. Existing query-string authentication also works.
+
+**Contact:**
+```json
+{
+  "to": "919000000001",
+  "contact": {
+    "name": "Example Support",
+    "phone": "+919000000002",
+    "organization": "Example Company",
+    "email": "support@example.com"
+  }
+}
+```
+
+**Location:**
+```json
+{
+  "to": "919000000001",
+  "location": {
+    "latitude": 10.0731,
+    "longitude": 78.7802,
+    "name": "Example Office",
+    "address": "Karaikudi, Tamil Nadu"
+  }
+}
+```
+
+Contact requires `name` and international `phone`; `organization` and `email` are optional. A native vCard is sent without editing the address book. Location requires numeric `latitude` (-90 to 90) and `longitude` (-180 to 180); `name`, `address`, and HTTP(S) `url` are optional. Static pins only, not live GPS. Use one payload type per request; invalid or mixed contact/location requests return 400 before sending. Successful responses retain `{ok:true,logId}`; logs use `contact` or `location`. Failed sends return 500 with a log ID; check delivery before retrying. Examples are illustrative; share only authorized information.

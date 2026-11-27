@@ -22,6 +22,8 @@ const cookieParser = require('cookie-parser');
 const wa           = require('./waManager');
 const routes       = require('./routes/index.js');
 const { withControlLock } = require('./services/controlLock');
+const { requireKey } = require('./routes/authMiddleware');
+const { registerRequestBodyParsers } = require('./services/requestBody');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -50,8 +52,7 @@ async function start() {
     const secret = await getCookieSecret();
     app.set('trust proxy', 1);
     app.disable('x-powered-by');
-    app.use(express.json({ limit: '100kb' }));
-    app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+    registerRequestBodyParsers(app, requireKey);
     app.use(cookieParser(secret));
     app.use('/', routes);
 

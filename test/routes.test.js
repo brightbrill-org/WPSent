@@ -189,3 +189,24 @@ test('administrator mutations reject missing CSRF header and foreign origins', (
   requireMutation({get:k=>headers[k],is:()=>true,protocol:'https'},res,()=>{accepted=true;});
   assert.equal(accepted,true);
 });
+
+const sendHandler=router.stack.find(layer=>layer.route?.path==='/send').route.stack[1].handle;
+test('send rejects malformed or mixed share payload before dispatch',async()=>{
+  wa.sanitizePhone=x=>x.replace(/\D/g,'');
+  wa.sendMessage=async()=>assert.fail('invalid share must not send');
+  for(const body of [{location:{latitude:91,longitude:0}},{contact:null},{contact:{name:'A',phone:'919000000002'},message:'hi'}]){
+    const res=lidResponse();
+    await sendHandler({query:{to:'919000000001'},body,wpUser:{phone:'account-a'}},res);
+    assert.equal(res.statusCode,400);
+  }
+});
+test('documentation and Postman expose both native share requests',()=>{
+  const docs=docsHTML('https://example.test');
+  assert.ok(docs.includes('Contact card'));assert.ok(docs.includes('Location pin'));
+  const items=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name==='WhatsApp API').item;
+  for(const name of ['Send contact card','Send location pin']){
+    const request=items.find(x=>x.name===name).request;
+    assert.equal(request.method,'POST');assert.equal(request.url,'{{baseUrl}}/send');
+    assert.doesNotThrow(()=>JSON.parse(request.body.raw));
+  }
+});
