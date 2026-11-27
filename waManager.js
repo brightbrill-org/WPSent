@@ -28,6 +28,10 @@ const fs                     = require('fs');
 const path                   = require('path');
 
 const sessions     = new Map();
+const blockedPhones = new Set();
+function isPhoneBlocked(phone) { return blockedPhones.has(String(phone)); }
+function blockPhone(phone) { blockedPhones.add(String(phone)); }
+
 const qrCallbacks  = new Map();
 const logListeners = new Map();
 const reconnectTimers = new Map();
@@ -88,7 +92,7 @@ async function pruneOldLogs(userId) {
 
 async function fireWebhooks(userId, payload) {
   const freshUser = await WpUser.findById(userId).lean();
-  if (!freshUser) return;
+  if (!freshUser || freshUser.revokedAt || isPhoneBlocked(freshUser.phone)) return;
   const active = (freshUser.webhooks || []).filter(w => w.active);
   if (!active.length) return;
   console.log(`[WH] Firing ${active.length} webhook(s)`);
@@ -160,14 +164,14 @@ async function teardown(phone) {
 }
 
 function scheduleReconnect(phone, delay = RECONNECT_MS) {
-  if (shuttingDown || reconnectTimers.has(phone)) return;
+  if (shuttingDown || isPhoneBlocked(phone) || reconnectTimers.has(phone)) return;
   const s = sessions.get(phone);
   if (s) s.reconnecting = true;
   reconnectTimers.set(phone, setTimeout(async () => {
     reconnectTimers.delete(phone);
     try {
       await teardown(phone);
-      if (!shuttingDown) createSession(phone);
+      if (!shuttingDown && !isPhoneBlocked(phone)) createSession(phone);
     } catch (e) {
       console.error('[WA] Reconnect teardown failed:', e.message);
       if (!shuttingDown) scheduleReconnect(phone, RECONNECT_MS);
@@ -219,6 +223,7 @@ function startQRFallback(phone, session) {
 
 function createSession(phone) {
   if (shuttingDown) throw new Error('WhatsApp manager is shutting down');
+  if (isPhoneBlocked(phone)) throw new Error('Phone registration revoked');
   if (!/^\d+$/.test(String(phone))) throw new Error('Invalid session phone');
   const existing = sessions.get(phone);
   if (existing) {
@@ -316,8 +321,8 @@ function createSession(phone) {
   client.on('message', async (msg) => {
     try {
       if (msg.from === 'status@broadcast' || msg.isStatus) return;
-      const user = await WpUser.findOne({ phone });
-      if (!user) return;
+      const user = await WpUser.findOne({ phone, revokedAt: null });
+      if (!user || isPhoneBlocked(phone)) return;
       const type = classifyMessage(msg);
       const body = extractBody(msg);
       const sender = await resolveSender(msg.from);
@@ -333,8 +338,8 @@ function createSession(phone) {
 
   client.on('message_reaction', async (reaction) => {
     try {
-      const user = await WpUser.findOne({ phone });
-      if (!user) return;
+      const user = await WpUser.findOne({ phone, revokedAt: null });
+      if (!user || isPhoneBlocked(phone)) return;
       const body = `[Reaction: ${reaction.reaction || '👍'}]`;
       const sender = await resolveSender(reaction.senderId);
       const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, body, type: 'reaction', status: 'received' });
@@ -381,11 +386,13 @@ async function destroySession(phone, { wipe = false } = {}) {
 }
 
 async function rescanSession(phone) {
+  if (isPhoneBlocked(phone)) throw new Error('Phone registration revoked');
   await destroySession(phone, { wipe: true });
   return createSession(phone);
 }
 
 async function resolveLid(phone, lid) {
+  if (isPhoneBlocked(phone)) throw Object.assign(new Error('Phone registration revoked'), { code: 'WA_NOT_READY' });
   const session = sessions.get(phone);
   if (!session || session.destroyed || session.status !== 'ready') {
     const err = new Error('WhatsApp session not ready');
@@ -427,6 +434,7 @@ function emitLog(userId, log) {
 }
 
 async function sendMessage(phone, to, body) {
+  if (isPhoneBlocked(phone)) throw new Error('Phone registration revoked');
   const session = sessions.get(phone);
   if (!session || session.status !== 'ready') throw new Error('WhatsApp session not ready');
   const clean = to.includes('@') ? to : sanitizePhone(to) + '@c.us';
@@ -473,11 +481,13 @@ async function shutdown() {
 }
 
 async function restoreAllSessions() {
-  const users = await WpUser.find({}).select('phone').lean();
+  const revoked = await WpUser.find({ revokedAt: { $ne: null } }).select('phone').lean();
+  for (const user of revoked) blockPhone(user.phone);
+  const users = await WpUser.find({ revokedAt: null }).select('phone').lean();
   users.forEach((u, i) => {
     const timer = setTimeout(() => {
       restoreTimers.delete(timer);
-      if (shuttingDown) return;
+      if (shuttingDown || isPhoneBlocked(u.phone)) return;
       console.log(`[WA] Restoring session: ${u.phone}`);
       try { createSession(u.phone); } catch (e) { console.error('[WA] Restore failed:', e.message); }
     }, i * STAGGER_MS);
@@ -487,7 +497,7 @@ async function restoreAllSessions() {
 }
 
 module.exports = {
-  createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId,
+  createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
   onQR, offQR, sendMessage, resolveLid, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

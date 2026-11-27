@@ -8,24 +8,28 @@ const { str, safeEq, ah } = require('./helpers');
 const { CONFIG, MAX_ATTEMPTS, LOCKOUT_MS } = require('./config');
 const { uniqueClientId, setSession, pending, startPairing, getPairing, rotateCredentials } = require('./authState');
 const wa = require('../waManager');
+const { withControlLock } = require('../services/controlLock');
+const { getPhoneLimit } = require('../services/adminStore');
 
 module.exports = function registerAuth(router) {
   const resetCodes   = new Map();
   const codeCooldown = new Map();
 
-  router.post('/auth/start', ah(async (req, res) => {
+  router.post('/auth/start', ah(async (req, res) => withControlLock(async () => {
     const phone = wa.sanitizePhone(str(req.body?.phone));
     if (!phone) return res.status(400).json({ error: 'Phone number required' });
 
     const user = await WpUser.findOne({ phone });
 
+    if (user?.revokedAt || wa.isPhoneBlocked(phone)) return res.status(403).json({ error: 'Phone registration revoked' });
     if (user) {
       return res.json({ ok: true, phone, existing: true });
     }
 
-    if (CONFIG.SINGLE_USER) {
-      const count = await WpUser.countDocuments();
-      if (count >= 1) {
+    const limit = await getPhoneLimit();
+    if (limit !== null) {
+      const count = await WpUser.countDocuments({ revokedAt: null });
+      if (count >= limit) {
         return res.status(503).json({
           error: 'server_full',
           message: 'This server is at capacity. Please self-host your own instance.',
@@ -45,7 +49,7 @@ module.exports = function registerAuth(router) {
     wa.createSession(phone);
     startPairing(req, res, phone, false);
     res.json({ ok: true, phone, existing: false });
-  }));
+  })));
 
   router.post('/auth/login', ah(async (req, res) => {
     const phone = wa.sanitizePhone(str(req.body?.phone));
@@ -53,7 +57,7 @@ module.exports = function registerAuth(router) {
     if (!phone || !key) return res.status(400).json({ error: 'phone and key required' });
 
     const user = await WpUser.findOne({ phone });
-    if (!user) return res.status(403).json({ error: 'User not found' });
+    if (!user || user.revokedAt || wa.isPhoneBlocked(phone)) return res.status(403).json({ error: 'User not found or revoked' });
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const remaining = Math.ceil((user.lockedUntil - Date.now()) / 60000);
@@ -81,7 +85,7 @@ module.exports = function registerAuth(router) {
     const phone = wa.sanitizePhone(str(req.body?.phone));
     if (!phone) return res.status(400).json({ error: 'phone required' });
     const user = await WpUser.findOne({ phone });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user || user.revokedAt || wa.isPhoneBlocked(phone)) return res.status(403).json({ error: 'User not found or revoked' });
 
     const st = wa.getStatus(phone);
     if (st === 'ready') {
@@ -109,6 +113,7 @@ module.exports = function registerAuth(router) {
   router.post('/auth/reset/confirm', ah(async (req, res) => {
     const phone = wa.sanitizePhone(str(req.body?.phone));
     const code  = str(req.body?.code);
+    if (wa.isPhoneBlocked(phone) || !await WpUser.exists({ phone, revokedAt: null })) return res.status(403).json({ error: 'Phone registration revoked or not found' });
     const entry = resetCodes.get(phone);
     if (!entry || entry.exp < Date.now()) { resetCodes.delete(phone); return res.status(400).json({ error: 'Code expired. Request a new one.' }); }
     entry.attempts++;
@@ -123,7 +128,7 @@ module.exports = function registerAuth(router) {
 
   router.get('/auth/claim', ah(async (req, res) => {
     const p = getPairing(req);
-    if (!p || wa.getPairedAt(p.phone) < p.createdAt) return res.redirect('/');
+    if (!p || wa.isPhoneBlocked(p.phone) || !await WpUser.exists({ phone: p.phone, revokedAt: null }) || wa.getPairedAt(p.phone) < p.createdAt) return res.redirect('/');
     pending.delete(p.phone);
     res.clearCookie('wpsent_pair');
     const user = p.rotate ? await rotateCredentials(p.phone) : await WpUser.findOne({ phone: p.phone });
@@ -134,7 +139,7 @@ module.exports = function registerAuth(router) {
 
   router.get('/auth/qr-stream', (req, res) => {
     const p = getPairing(req);
-    if (!p) return res.status(403).end('Start sign-in first');
+    if (!p || wa.isPhoneBlocked(p.phone)) return res.status(403).end('Start sign-in first');
     const phone = p.phone;
 
     res.setHeader('Content-Type',  'text/event-stream');
@@ -151,6 +156,7 @@ module.exports = function registerAuth(router) {
     const cleanup = () => { clearInterval(timer); wa.offQR(phone, sendQR); };
 
     const check = () => {
+      if (wa.isPhoneBlocked(phone)) { send('blocked', {}); cleanup(); res.end(); return true; }
       if (wa.getPairedAt(phone) >= p.createdAt) { send('ready', {}); cleanup(); res.end(); return true; }
       if (wa.getStatus(phone) === 'ready')       { send('blocked', {}); cleanup(); res.end(); return true; }
       return false;

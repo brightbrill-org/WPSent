@@ -11,7 +11,7 @@ const requireKey = ah(async (req, res, next) => {
   if (!clientId) return res.status(401).json({ error: 'Missing clientid' });
   if (!key)      return res.status(401).json({ error: 'Missing key' });
   const user = await WpUser.findOne({ clientId });
-  if (!user)                       return res.status(403).json({ error: 'Unknown client ID' });
+  if (!user || user.revokedAt || wa.isPhoneBlocked(user.phone)) return res.status(403).json({ error: 'Unknown client ID' });
   if (!safeEq(user.apiKey, key))   return res.status(403).json({ error: 'Invalid API key' });
   req.wpUser = user;
   next();
@@ -19,7 +19,7 @@ const requireKey = ah(async (req, res, next) => {
 
 const requireDashboard = ah(async (req, res, next) => {
   const user = await userFromCookie(req);
-  if (!user) {
+  if (!user || wa.isPhoneBlocked(user.phone)) {
     res.clearCookie('wpsent_phone');
     return req.path.startsWith('/api/') ? res.status(401).json({ error: 'Not signed in' }) : res.redirect('/');
   }

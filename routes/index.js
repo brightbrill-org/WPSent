@@ -7,6 +7,7 @@ const registerDashboard = require('./dashboard');
 const registerMessages = require('./messages');
 const registerWebhooks = require('./webhooks');
 const registerContacts = require('./contacts');
+const registerAdmin = require('./admin');
 
 const router = express.Router();
 
@@ -17,5 +18,6 @@ registerDashboard(router);
 registerMessages(router);
 registerWebhooks(router);
 registerContacts(router);
+registerAdmin(router);
 
 module.exports = router;

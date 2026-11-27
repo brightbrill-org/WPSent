@@ -57,6 +57,7 @@ module.exports = function registerDashboard(router) {
     let timer = null;
     const cleanup = () => { clearInterval(timer); wa.offQR(phone, sendQR); };
     const check = () => {
+      if (wa.isPhoneBlocked(phone)) { cleanup(); res.end(); return true; }
       if (wa.getStatus(phone) === 'ready') { send('ready', {}); cleanup(); res.end(); return true; }
       return false;
     };
@@ -73,10 +74,10 @@ module.exports = function registerDashboard(router) {
     res.setHeader('Connection',    'keep-alive');
     res.flushHeaders();
 
-    const send = (data) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch(_){} };
+    const send = (data) => { if (wa.isPhoneBlocked(req.wpPhone)) return; try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch(_){} };
     const uid  = req.wpUser._id.toString();
     wa.onLog(uid, send);
-    const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch(_){} }, 10000);
+    const hb = setInterval(() => { if (wa.isPhoneBlocked(req.wpPhone)) { res.end(); return; } try { res.write(': heartbeat\n\n'); } catch(_){} }, 10000);
     req.on('close', () => { clearInterval(hb); wa.offLog(uid, send); });
   });
 };
