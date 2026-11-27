@@ -155,6 +155,42 @@
           }
         },
         {
+          "name": "List chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chats?limit=50&offset=0",
+            "description": "Authenticated read-only directory. Search and pagination supported; optional resolveLid=true resolves up to 20 LIDs on the page."
+          }
+        },
+        {
+          "name": "List contacts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/contacts?limit=50&offset=0",
+            "description": "Authenticated read-only directory. Search and pagination supported; optional resolveLid=true resolves up to 20 LIDs on the page."
+          }
+        },
+        {
           "name": "Send text",
           "request": {
             "method": "POST",

@@ -90,6 +90,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#examples">Code Examples</a>
     <a href="#types">Message Types</a>
     <a href="#admin">Administration</a>
+    <a href="#directory">Chats &amp; contacts</a>
     <a href="#contact">Contact</a>
   </div>
   <div class="doc">
@@ -231,6 +232,34 @@ npm start              # visit http://localhost:3000</pre>
   "resolved": false
 }</pre>
     <p>HTTP 400: missing or invalid LID. 401/403: missing or invalid credentials. 503: WhatsApp session not ready. 500: unexpected server error. A lookup may return unresolved on a missing mapping, timeout or temporary lookup failure. Successful mappings share the inbound-message cache; no number is inferred from LID digits. Use the original LID with <code>/send</code> if necessary. Examples use fictional identifiers.</p>
+
+    <h2 id="directory">List WhatsApp chats and contacts</h2>
+    <p><span class="mt get">GET</span><code>/chats</code> and <span class="mt get">GET</span><code>/contacts</code> return the authenticated account's currently available WhatsApp directory. Use existing API headers. No message history, group participants, profile photos or raw WhatsApp objects are returned.</p>
+    <pre>GET /chats?limit=50&amp;offset=0&amp;type=group
+GET /chats?unreadOnly=true&amp;archived=false
+GET /contacts?search=Support&amp;savedOnly=true
+GET /contacts?resolveLid=true</pre>
+    <p>Common parameters: <code>limit</code> (1–200, default 50), <code>offset</code> (0–1000000, default 0), <code>search</code> (case-insensitive name, ID or known phone), <code>resolveLid</code> (true/false, default false; resolves at most 20 LIDs on the returned page). Chats also accept <code>type</code> (all/individual/group), <code>unreadOnly</code> and <code>archived</code> (true/false). Contacts accept <code>savedOnly</code> and <code>businessOnly</code> (true filters, false/omitted does not filter). Search runs before optional LID resolution. Unresolved LID phone numbers are null, never inferred from the ID digits.</p>
+    <h3>Chat response</h3>
+    <pre>{
+  "ok": true, "total": 1, "limit": 50, "offset": 0, "hasMore": false,
+  "items": [{
+    "id": "123456789-123456789@g.us", "phone": null, "lid": null,
+    "name": "Example group", "isGroup": true, "unreadCount": 2,
+    "timestamp": 1795775400, "archived": false, "pinned": false, "isMuted": false
+  }]
+}</pre>
+    <h3>Contact response</h3>
+    <pre>{
+  "ok": true, "total": 1, "limit": 50, "offset": 0, "hasMore": false,
+  "items": [{
+    "id": "919000000001@c.us", "phone": "919000000001", "lid": null,
+    "name": "Example Support", "pushname": null, "shortName": null,
+    "isMyContact": true, "isBusiness": false, "isWAContact": true,
+    "isMe": false, "isBlocked": false
+  }]
+}</pre>
+    <p>Chat timestamps are Unix seconds; chats sorted most recent first, contacts by name. Missing fields are null. Use returned <code>id</code> as <code>to</code> in Send API. Contacts reflect the linked WhatsApp Web session, not necessarily the complete phone address book. Broadcast/status/newsletter entries are excluded. Pagination is over a live directory, not a fixed snapshot; concurrent changes can move items between pages. Invalid query: 400; credentials: 401/403; session unavailable/busy: 503; directory timeout: 504. Responses are private and not cacheable.</p>
 
     <h2 id="webhooks">Webhooks</h2>
     <p>Register a separate URL for each event type. Existing subscriptions and requests without an event remain inbound-message webhooks. Query params in your URL are preserved.</p>

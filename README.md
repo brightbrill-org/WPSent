@@ -256,3 +256,14 @@ Register a separate URL using `POST /webhooks` with the existing API headers:
 ```
 
 Payload contains `event`, `eventId`, `phone`, `reason`, `status: rescan_required`, and ISO `timestamp`. Reasons: `qr_required` (actual QR), `auth_failure` (library reports failed authentication), `logged_out`, or `unpaired`. Existing message hooks stay separate; a hook without an event defaults to `message_received`. Both GET and POST work; each subscription can be paused or deleted independently. Duplicate alerts are suppressed in MongoDB until a genuine Ready event, including across process restarts. Only accounts with an active rescan subscription receive an alert; manual rescan can also trigger it. Ordinary disconnects or readiness retries without authentication evidence do not. No QR data or credentials are sent. Delivery is best effort (existing 8-second timeout), not a durable notification retry queue; use `/status` for independent monitoring. Invalid event values return 400.
+
+### List WhatsApp chats and contacts
+
+Authenticated read-only endpoints:
+
+```http
+GET /chats?limit=50&offset=0&type=all
+GET /contacts?limit=50&offset=0&savedOnly=true
+```
+
+Use `x-client-id` and `x-api-key`. Each response is `{ok,total,limit,offset,hasMore,items}`. Common optional parameters: `search` (case-insensitive name/ID/known phone, max 200 chars), `limit` (1–200), `offset` (0–1000000), `resolveLid` (true/false, default false; resolves up to 20 LIDs on current page only). Chats: `type=all|individual|group`, `unreadOnly=true`, `archived=true|false`. Contacts: `savedOnly=true`, `businessOnly=true`. Chats expose ID, name, phone/LID, group flag, unread count, Unix seconds timestamp, archived/pinned/muted flags. Contacts expose ID, name/pushname/shortName, phone/LID, saved/business/WhatsApp/self/blocked flags. Unknown fields are null. No LID digits are treated as phone numbers; optional resolution runs after search and pagination. Use the original ID in `/send`. Directories are live, not stable snapshots; only data available to the linked Web session is returned, and status/broadcast/newsletters are excluded. No message history or group member enumeration. The browser fetch has a 20-second deadline, single-flight per account/type and a global cap of four outstanding browser calls. No directory storage or new dependencies. HTTP 400 invalid query, 401/403 auth, 503 unavailable/busy/not ready, 504 timeout.
