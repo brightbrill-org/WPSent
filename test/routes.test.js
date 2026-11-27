@@ -228,6 +228,8 @@ test('rescan webhook is independently selectable in dashboard docs and Postman',
   const items=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name==='WhatsApp API').item;
   const body=JSON.parse(items.find(x=>x.name==='Add authentication rescan webhook').request.body.raw);
   assert.equal(body.event,'auth_rescan_required');
+});
+
 test('inbound media download scopes lookup to current owner and forces attachment',async()=>{
   const {downloadHandler}=require('../routes/media');
   const id='12345678-1234-4234-8234-123456789012';
