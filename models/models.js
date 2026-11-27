@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const webhookSchema = new mongoose.Schema({
   url:    { type: String, required: true },
   method: { type: String, enum: ['GET', 'POST'], default: 'POST' },
+  event:  { type: String, enum: ['message_received', 'auth_rescan_required'], default: 'message_received' },
   label:  { type: String, default: '' },
   active: { type: Boolean, default: true }
 });
@@ -14,6 +15,7 @@ const wpUserSchema = new mongoose.Schema({
   loginAttempts: { type: Number, default: 0 },
   lockedUntil:   { type: Date, default: null },
   lastSeen:      { type: Date, default: null },
+  authRescanRequiredAt: { type: Date, default: null },
   sessionData:   { type: mongoose.Schema.Types.Mixed, default: null },
   revokedAt:     { type: Date, default: null },
   revocationCompleteAt: { type: Date, default: null },

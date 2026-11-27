@@ -210,3 +210,20 @@ test('documentation and Postman expose both native share requests',()=>{
     assert.doesNotThrow(()=>JSON.parse(request.body.raw));
   }
 });
+
+test('webhook registration rejects unsupported event names before database access',async()=>{
+  const handler=router.stack.find(layer=>layer.route?.path==='/webhooks'&&layer.route.methods.post).route.stack[1].handle;
+  for(const event of ['other',null,[],{}]){
+    const res=lidResponse();
+    await handler({body:{url:'https://example.test/hook',event},wpUser:{_id:'owner-a'}},res);
+    assert.equal(res.statusCode,400);
+  }
+});
+test('rescan webhook is independently selectable in dashboard docs and Postman',()=>{
+  const docs=docsHTML('https://example.test');
+  assert.ok(docs.includes('auth_rescan_required'));
+  assert.ok(dashboardHTML({phone:'1234567890'}).includes('id="wh-event"'));
+  const items=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name==='WhatsApp API').item;
+  const body=JSON.parse(items.find(x=>x.name==='Add authentication rescan webhook').request.body.raw);
+  assert.equal(body.event,'auth_rescan_required');
+});

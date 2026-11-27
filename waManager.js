@@ -2,6 +2,8 @@ const { Client } = require('whatsapp-web.js');
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { HybridAuth, deleteBackups } = require('./auth/HybridAuth');
+const { selectWebhooks, rescanReason, AUTH_RESCAN_REQUIRED } = require('./utils/webhookEvents');
+const { createAuthRescanNotifier } = require('./utils/authRescanNotifier');
 const mongoose               = require('mongoose');
 const loadModels = () => {
   for (const p of ['./models/models.js', './models/index.js', './models.js']) {
@@ -102,7 +104,7 @@ async function pruneOldLogs(userId) {
 async function fireWebhooks(userId, payload) {
   const freshUser = await WpUser.findById(userId).lean();
   if (!freshUser || freshUser.revokedAt || isPhoneBlocked(freshUser.phone)) return;
-  const active = (freshUser.webhooks || []).filter(w => w.active);
+  const active = selectWebhooks(freshUser.webhooks, payload.event);
   if (!active.length) return;
   console.log(`[WH] Firing ${active.length} webhook(s)`);
   await Promise.allSettled(active.map(async (wh) => {
@@ -119,6 +121,24 @@ async function fireWebhooks(userId, payload) {
       console.error(`[WH] Failed: ${wh.url} — ${e.message}`);
     }
   }));
+}
+
+// Claim a notification episode only for an account with an active rescan
+// subscription. Existing message-only webhooks never receive auth events.
+const authRescanNotifier = createAuthRescanNotifier({
+  claim: (phone, timestamp) => WpUser.findOneAndUpdate({
+    phone, revokedAt: null, authRescanRequiredAt: null,
+    webhooks: {$elemMatch:{event:AUTH_RESCAN_REQUIRED,active:true}}
+  }, {$set:{authRescanRequiredAt:timestamp}}, {new:true}).select('_id').lean(),
+  clear: phone => WpUser.updateOne({phone,revokedAt:null},{$set:{authRescanRequiredAt:null}}),
+  deliver: fireWebhooks,
+  onError: e => console.error('[WA] Rescan webhook state error:',e.message)
+});
+function notifyRescan(phone,session,reason) {
+  if(shuttingDown||isPhoneBlocked(phone)||session.destroyed||session.initFailed||sessions.get(phone)!==session)return;
+  // An explicit logout may destroy the session before the queued notification
+  // is dispatched. Account revocation and shutdown are still checked.
+  void authRescanNotifier.notify(phone,reason,()=>!shuttingDown&&!isPhoneBlocked(phone));
 }
 
 function classifyMessage(msg) {
@@ -238,6 +258,7 @@ function publishQR(phone, session, qr) {
   session.qr = qr;
   session.status = 'qr_ready';
   session.needsPair = true;
+  notifyRescan(phone, session, 'qr_required');
   (qrCallbacks.get(phone) || []).forEach(fn => { try { fn(qr); } catch (_) {} });
 }
 
@@ -346,6 +367,7 @@ function createSession(phone) {
       session.needsPair = false;
     }
     console.log(`[WA] Ready: ${phone}`);
+    void authRescanNotifier.ready(phone,()=>!shuttingDown&&!isPhoneBlocked(phone));
     try { await WpUser.updateOne({ phone }, { lastSeen: new Date() }); }
     catch (e) { console.error('[WA] lastSeen update failed:', e.message); }
   });
@@ -360,11 +382,14 @@ function createSession(phone) {
     session.auth.canBackup = false;
     stopQR(session);
     session.status = 'auth_failure';
+    notifyRescan(phone, session, 'auth_failure');
     console.error(`[WA] Auth failure for ${phone}:`, msg);
   });
 
   client.on('disconnected', (reason) => {
     if (session.destroyed || session.initFailed) return;
+    const authReason = rescanReason(reason);
+    if (authReason) notifyRescan(phone, session, authReason);
     session.watchdog.stop();
     if (session.status !== 'ready') { failInitialization(phone, session, new Error('Disconnected during initialization: ' + reason)); return; }
     session.auth.canBackup = false;
