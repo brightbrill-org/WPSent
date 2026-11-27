@@ -130,7 +130,10 @@ const requireDashboard = ah(async (req, res, next) => {
 
 router.get('/', (req, res) => res.send(landingHTML()));
 
-router.get('/docs', (req, res) => res.send(docsHTML()));
+router.get('/docs', (req, res) => {
+  const host = `${req.protocol}://${req.get('host')}`;
+  res.send(docsHTML(host));
+});
 
 router.post('/auth/start', ah(async (req, res) => {
   const phone = wa.sanitizePhone(str(req.body?.phone));
@@ -354,17 +357,34 @@ router.get('/api/logs-stream', requireDashboard, (req, res) => {
 });
 
 router.post('/send', requireKey, ah(async (req, res) => {
-  const rawTo   = str(req.query.to || req.body?.to);
-  const message = str(req.body?.message || req.body?.body || req.query.message);
-  const to      = rawTo.includes('@') ? rawTo : wa.sanitizePhone(rawTo);
-  if (!to)      return res.status(400).json({ error: 'to is required' });
-  if (!message) return res.status(400).json({ error: 'message is required' });
+  const rawTo = str(req.query.to || req.body?.to);
+  const to    = rawTo.includes('@') ? rawTo : wa.sanitizePhone(rawTo);
+  if (!to) return res.status(400).json({ error: 'to is required' });
+
+  let payload, logBody, logType;
+
+  const pollQuestion = str(req.body?.question || req.body?.poll?.question);
+  const pollOptions  = req.body?.options || req.body?.poll?.options;
+  if (pollQuestion && Array.isArray(pollOptions) && pollOptions.length >= 2) {
+    const { Poll } = require('whatsapp-web.js');
+    const options = pollOptions.map(o => str(o)).filter(Boolean);
+    if (options.length < 2) return res.status(400).json({ error: 'poll requires at least 2 non-empty options' });
+    payload = new Poll(pollQuestion, options);
+    logBody = `Poll: ${pollQuestion} (${options.join(', ')})`;
+    logType = 'poll';
+  } else {
+    const message = str(req.body?.message || req.body?.body || req.query.message);
+    if (!message) return res.status(400).json({ error: 'message is required (or provide question + options for a poll)' });
+    payload = message;
+    logBody = message;
+    logType = 'text';
+  }
 
   let status = 'sent', error = null;
-  try { await wa.sendMessage(req.wpUser.phone, to, message); }
+  try { await wa.sendMessage(req.wpUser.phone, to, payload); }
   catch (e) { status = 'failed'; error = e.message; }
 
-  const log = await MessageLog.create({ userId: req.wpUser._id, direction: 'outbound', to, body: message, type: 'text', status, error });
+  const log = await MessageLog.create({ userId: req.wpUser._id, direction: 'outbound', to, body: logBody, type: logType, status, error });
   await wa.pruneOldLogs(req.wpUser._id);
   wa.emitLog(req.wpUser._id.toString(), log.toObject());
 
@@ -1256,7 +1276,7 @@ boot();
 </html>`;
 }
 
-function docsHTML() {
+function docsHTML(host = 'https://wpsent.xyz') {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1387,15 +1407,25 @@ npm start              # visit http://localhost:3000</pre>
         <tr><td>message<span class="req">required</span></td><td>JSON body</td><td>Message text</td></tr>
       </tbody>
     </table>
-    <pre>curl -X POST "https://wpsent.xyz/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
+    <pre>curl -X POST "${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
   -H "Content-Type: application/json" \\
   -d '{"message": "Hello!"}'</pre>
     <p>Response:</p>
     <pre>{ "ok": true, "logId": "64f3a..." }</pre>
 
+    <h3>Poll</h3>
+    <p>To send a WhatsApp poll instead of a text message, provide a <code>question</code> and at least two <code>options</code>. You can send them at the top level of the JSON body, or nest them under <code>poll</code>. Polls are logged as type <code>poll</code>.</p>
+    <pre>curl -X POST "${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
+  -H "Content-Type: application/json" \\
+  -d '{"question": "What is your favorite color?", "options": ["Red", "Blue", "Green"]}'</pre>
+    <p>Or nested:</p>
+    <pre>curl -X POST "${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
+  -H "Content-Type: application/json" \\
+  -d '{"poll": {"question": "What is your favorite color?", "options": ["Red", "Blue", "Green"]}}'</pre>
+
     <h2 id="logs">Message Logs</h2>
     <p><span class="mt get">GET</span><code>/logs</code> &mdash; last 100 messages, oldest auto-deleted.</p>
-    <pre>curl "https://wpsent.xyz/logs?clientid=YOUR_CID&key=YOUR_KEY"</pre>
+    <pre>curl "${host}/logs?clientid=YOUR_CID&key=YOUR_KEY"</pre>
 
     <h2 id="status">Connection Status</h2>
     <p><span class="mt get">GET</span><code>/status</code></p>
@@ -1424,14 +1454,14 @@ x-api-key: YOUR_KEY
     <h2 id="examples">Code Examples</h2>
     <h3>Node.js</h3>
     <pre>const res = await fetch(
-  'https://wpsent.xyz/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000',
+  '${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000',
   { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ message: 'Hello!' }) }
 );
 console.log(await res.json());</pre>
     <h3>Python</h3>
     <pre>import requests
-r = requests.post('https://wpsent.xyz/send',
+r = requests.post('${host}/send',
     params={'clientid':'YOUR_CID','key':'YOUR_KEY','to':'8801711000000'},
     json={'message': 'Hello!'})
 print(r.json())</pre>

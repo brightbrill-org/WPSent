@@ -38,7 +38,7 @@ Both are shown on your dashboard after scanning the QR.
 
 ## REST API
 
-### Send a message
+### Send a message (text)
 ```
 POST /send?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY&to=8801711000000
 Content-Type: application/json
@@ -46,6 +46,27 @@ Content-Type: application/json
 { "message": "Hello!" }
 ```
 Phone numbers are cleaned automatically — `+880 171...`, `880171...`, `+8801711000000` all work.
+
+### Send a poll
+```
+POST /send?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY&to=8801711000000
+Content-Type: application/json
+
+{
+  "question": "What is your favorite color?",
+  "options": ["Red", "Blue", "Green"]
+}
+```
+Or nested:
+```json
+{
+  "poll": {
+    "question": "What is your favorite color?",
+    "options": ["Red", "Blue", "Green"]
+  }
+}
+```
+Requires at least 2 non-empty options. Logged as type `poll`.
 
 ### Get logs
 ```
