@@ -329,6 +329,7 @@ function createSession(phone) {
       // Group chat identity remains in from; expose the participant separately.
       const author = msg.author ? await resolveSender(msg.author) : null;
       const participant = author ? { authorId: author.fromId, authorPhone: author.fromPhone, authorLid: author.fromLid } : {};
+      if (isPhoneBlocked(phone)) return;
       const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, body, type, status: 'received' });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
@@ -342,6 +343,7 @@ function createSession(phone) {
       if (!user || isPhoneBlocked(phone)) return;
       const body = `[Reaction: ${reaction.reaction || '👍'}]`;
       const sender = await resolveSender(reaction.senderId);
+      if (isPhoneBlocked(phone)) return;
       const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, body, type: 'reaction', status: 'received' });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());

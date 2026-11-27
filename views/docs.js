@@ -118,7 +118,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <pre>1. Fork: ${CONFIG.GITHUB_URL}
 2. New project on railway.app &rarr; Deploy from GitHub
 3. Add env var: MONGO_URI = your MongoDB Atlas URI
-4. Add env var: SINGLE_USER = true  (optional, limits to 1 user)
+4. Add env var: SINGLE_USER = true (optional, initial phone limit of 1; admin settings override this)
 5. Deploy &mdash; Chromium installs automatically</pre>
     <h3>Local</h3>
     <pre>git clone ${CONFIG.GITHUB_URL}

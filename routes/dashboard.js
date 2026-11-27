@@ -51,7 +51,7 @@ module.exports = function registerDashboard(router) {
 
     const send = (event, data) => { try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch(_){} };
     const sendQR = async (qr) => {
-      try { send('qr', { dataUrl: await qrcode.toDataURL(qr, { width: 300 }) }); }
+      try { const dataUrl = await qrcode.toDataURL(qr, { width: 300 }); if (!wa.isPhoneBlocked(phone)) send('qr', { dataUrl }); }
       catch (e) { console.error('[qr] render failed', e.message); }
     };
     let timer = null;
