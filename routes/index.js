@@ -1,1 +1,1 @@
-$(cat /tmp/routes_index_new.js)
+$(python3 -c 'print(open("/tmp/routes_index_docs.js").read())')
