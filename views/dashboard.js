@@ -342,11 +342,14 @@ function logRow(l, isNew) {
   var st  = l.status==='sent' ? '<span class="b bs">&#10003; Sent</span>' :
             l.status==='received' ? '<span class="b br">&#10003; Recv</span>' :
             '<span class="b bf">&#10007; Failed</span>';
+  var media = l.mediaStatus === 'available' && l.mediaId && Date.parse(l.mediaExpiresAt)>Date.now()
+    ? '<div><a href="/api/media/'+encodeURIComponent(l.mediaId)+'" download>Download '+esc(l.mediaFilename||'media')+'</a></div>'
+    : l.mediaStatus ? '<div style="color:var(--muted);font-size:11px">Media: '+esc(l.mediaStatus==='available'?'expired':l.mediaStatus)+'</div>' : '';
   var err = l.error ? '<div style="color:var(--danger);font-size:11px;margin-top:2px">'+esc(l.error)+'</div>' : '';
   return '<tr'+(isNew?' class="nr"':'')+'>' +
     '<td class="mono" style="white-space:nowrap;color:var(--muted)">'+ts+'</td>' +
     '<td>'+dir+'</td><td class="mono"'+identity+'>'+esc(num)+participant+'</td><td>'+typ+'</td>' +
-    '<td>'+esc(l.body)+err+'</td><td>'+st+'</td></tr>';
+    '<td>'+esc(l.body)+media+err+'</td><td>'+st+'</td></tr>';
 }
 
 var sse = null;

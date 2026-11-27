@@ -204,6 +204,12 @@ wiping local authentication or MongoDB backups. Configure WA_READY_TIMEOUT_MS,
 WA_CALLBACK_TIMEOUT_MS, WA_READY_MAX_RETRIES and WA_CLOSE_TIMEOUT_MS in .env.
 See [readiness troubleshooting](docs/readiness-watchdog.md).
 
+### Download inbound media
+
+New inbound media is downloaded best effort and stored as private binary data in MongoDB with a TTL. Images, video, audio/voice notes, documents and stickers are supported when WhatsApp makes media available. Webhooks and logs expose flat metadata: `mediaStatus`; on success `mediaId`, `mediaFilename`, `mediaMimetype`, `mediaSize`, `mediaExpiresAt`, `mediaDownloadPath`. Media webhooks also include the message `logId`. Text and reaction webhook formats remain unchanged.
+
+`GET /media/:id` with existing API headers returns a binary attachment. Dashboard Logs offers a cookie-authenticated Download link. No media or credentials are embedded in webhook URLs. Expired/missing/other-account media returns 404. Files expire independently of the 100-message log cap; MongoDB TTL cleanup is asynchronous, but expired files cannot be downloaded. Default 8 MiB/file, 24 hours, two concurrent captures, 20s capture deadline. Set WA_INBOUND_MEDIA_MAX_MB (1-10), WA_INBOUND_MEDIA_TTL_HOURS (1-168) or WA_INBOUND_MEDIA_TIMEOUT_MS (1000-60000). Capture is best effort; busy, timeout, unavailable, too_large and skipped statuses do not prevent message logging. View-once and identifiable disappearing media are skipped; no historical backfill. MongoDB storage usage increases; monitor quota. Only download files you are authorized to access.
+
 ### Send a contact card or static location
 
 Use `POST /send` with `x-client-id`, `x-api-key` and `Content-Type: application/json` headers. Existing query-string authentication also works.
