@@ -11,6 +11,8 @@ registers modules on a single router in the original order, without URL prefixes
 | routes/dashboard.js | Dashboard, logout, session status, rescan and log streams |
 | routes/messages.js | API-key-protected send, logs and status endpoints |
 | routes/webhooks.js | API-key-protected webhook CRUD |
+| routes/contacts.js | API-key-protected LID-to-phone lookup |
+| utils/lidResolver.js | Session-scoped LID resolution and caching |
 | routes/authMiddleware.js | API-key and dashboard cookie authentication |
 | routes/authState.js | Signed cookie, pairing state and credential helpers |
 | routes/modelAccess.js | Shared lazy access to Mongoose models |

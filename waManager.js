@@ -253,6 +253,7 @@ function createSession(phone) {
   const session = { client, auth, status: 'initializing', qr: null, needsPair: false, destroyed: false, reconnecting: false, authenticated: false, qrTimer: null };
   sessions.set(phone, session);
   const resolveSender = createLidResolver(client);
+  session.resolveSender = resolveSender;
 
   client.on('qr', qr => publishQR(phone, session, qr));
   client.on('authenticated', () => {
@@ -384,6 +385,17 @@ async function rescanSession(phone) {
   return createSession(phone);
 }
 
+async function resolveLid(phone, lid) {
+  const session = sessions.get(phone);
+  if (!session || session.destroyed || session.status !== 'ready') {
+    const err = new Error('WhatsApp session not ready');
+    err.code = 'WA_NOT_READY';
+    throw err;
+  }
+  const sender = await session.resolveSender(lid);
+  return { lid: sender.fromLid, phone: sender.fromPhone, phoneId: sender.fromPhone ? sender.fromPhone + '@c.us' : null, resolved: !!sender.fromPhone };
+}
+
 function getSession(phone) { return sessions.get(phone) || null; }
 function getStatus(phone)  { return sessions.get(phone)?.status || 'not_started'; }
 function getPairedAt(phone) { return pairedAtMap.get(phone) || 0; }
@@ -476,6 +488,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId,
-  onQR, offQR, sendMessage, restoreAllSessions,
+  onQR, offQR, sendMessage, resolveLid, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

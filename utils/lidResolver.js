@@ -20,10 +20,10 @@ function createLidResolver(client, { timeoutMs = 3000, cacheTtlMs = 3600000, max
     if (typeof client.getContactLidAndPhone !== 'function') return null;
     // Bound both the wait and the number of unresolved browser calls.
     if (activeLookups >= 32) return null;
+    activeLookups++;
     const task = Promise.resolve().then(async () => {
       let timer;
       try {
-        activeLookups++;
         const request = Promise.resolve().then(() => client.getContactLidAndPhone([id]))
           .finally(() => { activeLookups--; });
         const rows = await Promise.race([
