@@ -464,7 +464,7 @@ async function shutdown() {
     console.log('[WA] Shutdown: session ' + phone + ', status=' + s.status + ', backupEligible=' + wasReady);
     await teardown(phone);
     // Chrome has closed: on-disk storage is no longer being mutated by the browser.
-    if (wasReady && !s.auth.loggedOut) {
+    if (wasReady && !s.auth.loggedOut && !isPhoneBlocked(phone)) {
       const started = Date.now();
       console.log('[WA] Shutdown: saving clean MongoDB backup: ' + phone);
       const saved = await s.auth.storeRemoteSession({ clean: true });

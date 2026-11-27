@@ -1,0 +1,553 @@
+{
+  "info": {
+    "name": "WPSent API",
+    "description": "Configure collection variables and use a test account. No credentials included. Admin requests use Postman's cookie jar; do not export populated secrets. Do not run destructive mutations as a collection batch.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://wpsent.xyz",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recipient",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lid",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "documentBase64",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "webhookUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "webhookId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bootstrapToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetAdminEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "newAdminPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetPhone",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "WhatsApp API",
+      "item": [
+        {
+          "name": "Connection status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/status"
+          }
+        },
+        {
+          "name": "Message logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/logs"
+          }
+        },
+        {
+          "name": "Resolve LID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/lid/resolve?lid={{lid}}"
+          }
+        },
+        {
+          "name": "Send text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"message\": \"Hello from WPSent\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"question\": \"Choose an option\",\n  \"options\": [\n    \"A\",\n    \"B\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Send document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"document\": {\n    \"mimetype\": \"application/pdf\",\n    \"filename\": \"sample.pdf\",\n    \"data\": \"{{documentBase64}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"{{webhookUrl}}\",\n  \"method\": \"POST\",\n  \"label\": \"Postman test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Toggle webhook",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/{{webhookId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete webhook",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/{{webhookId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Administrator setup and session",
+      "item": [
+        {
+          "name": "Create administrator account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/signup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"bootstrapToken\": \"{{bootstrapToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "First account only requires bootstrap token; subsequent signups await approval."
+          }
+        },
+        {
+          "name": "Admin login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Postman cookie jar retains signed session cookie."
+          }
+        },
+        {
+          "name": "Current administrator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/me"
+          }
+        },
+        {
+          "name": "List phones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/phones"
+          }
+        },
+        {
+          "name": "List administrators",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/admins"
+          }
+        },
+        {
+          "name": "Admin logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/logout",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Administrator mutations — use only deliberately",
+      "item": [
+        {
+          "name": "Set phone limit",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/phone-limit",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
+          }
+        },
+        {
+          "name": "Approve administrator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/admins/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{targetAdminEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reset administrator password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/admins/password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{targetAdminEmail}}\",\n  \"password\": \"{{newAdminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Invalidates previous sessions."
+          }
+        },
+        {
+          "name": "Revoke administrator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/admins/revoke",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{targetAdminEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cannot revoke last active admin."
+          }
+        },
+        {
+          "name": "Revoke phone — destructive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/revoke",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Blocks registration and deletes WPSent authentication data. Do not run against production as a test."
+          }
+        }
+      ]
+    }
+  ]
+}
