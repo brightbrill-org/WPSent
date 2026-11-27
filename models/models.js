@@ -37,6 +37,13 @@ const messageLogSchema = new mongoose.Schema({
   type:      { type: String, default: 'text' },
   status:    { type: String, default: 'sent' },
   error:     { type: String, default: null },
+  mediaStatus: { type: String },
+  mediaId: { type: String },
+  mediaFilename: { type: String },
+  mediaMimetype: { type: String },
+  mediaSize: { type: Number },
+  mediaExpiresAt: { type: String },
+  mediaDownloadPath: { type: String },
   timestamp: { type: Date, default: Date.now, index: true }
 });
 messageLogSchema.index({ userId: 1, timestamp: -1 });

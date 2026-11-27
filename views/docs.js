@@ -198,6 +198,11 @@ npm start              # visit http://localhost:3000</pre>
     <p><span class="mt get">GET</span><code>/logs</code> &mdash; last 100 messages, oldest auto-deleted.</p>
     <pre>curl "${host}/logs?clientid=YOUR_CID&key=YOUR_KEY"</pre>
 
+    <h3>Download inbound media</h3>
+    <p><span class="mt get">GET</span><code>/media/:id</code> returns the original binary file as an attachment. Authenticate using <code>x-client-id</code> and <code>x-api-key</code>. The inbound webhook and logs include <code>mediaStatus</code>, and when available, <code>mediaId</code>, <code>mediaFilename</code>, <code>mediaMimetype</code>, <code>mediaSize</code> (bytes), <code>mediaExpiresAt</code> and <code>mediaDownloadPath</code>. GET webhook fields are flat query parameters. Prefix the relative download path with your WPSent base URL. No API key is embedded in the path.</p>
+    <pre>curl "${host}/media/MEDIA_ID" -H "x-client-id: YOUR_CID" -H "x-api-key: YOUR_KEY" -o received-file</pre>
+    <p>Default maximum 8 MiB per file; retention 24 hours; configurable by the server administrator. Media capture is best effort (available, unavailable, too_large, skipped, busy, timeout). View-once and identifiable disappearing media are skipped. No historical backfill. Missing, expired or other-account media returns 404. Download via dashboard Logs using the signed session cookie.</p>
+
     <h2 id="status">Connection Status</h2>
     <p><span class="mt get">GET</span><code>/status</code></p>
     <pre>{ "phone": "8801711000000", "status": "ready" }</pre>

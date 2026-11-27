@@ -55,7 +55,9 @@ const expected = [
   ['get', '/admin/api/admins', requireAdmin],
   ['post', '/admin/api/admins/approve', requireAdmin],
   ['post', '/admin/api/admins/revoke', requireAdmin],
-  ['post', '/admin/api/admins/password', requireAdmin]
+  ['post', '/admin/api/admins/password', requireAdmin],
+  ['get', '/media/:id', requireKey],
+  ['get', '/api/media/:id', requireDashboard]
 ];
 
 test('all existing routes retain method, path, registration order and auth guard', () => {
@@ -226,4 +228,15 @@ test('rescan webhook is independently selectable in dashboard docs and Postman',
   const items=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name==='WhatsApp API').item;
   const body=JSON.parse(items.find(x=>x.name==='Add authentication rescan webhook').request.body.raw);
   assert.equal(body.event,'auth_rescan_required');
+test('inbound media download scopes lookup to current owner and forces attachment',async()=>{
+  const {downloadHandler}=require('../routes/media');
+  const id='12345678-1234-4234-8234-123456789012';
+  wa.isPhoneBlocked=()=>false;
+  const request={params:{id},wpUser:{_id:'owner-a',phone:'account-a'}};
+  const res={...lidResponse(),attachment(name){this.filename=name;return this;},type(type){this.mime=type;return this;},send(bytes){this.bytes=bytes;return this;}};
+  await downloadHandler(async(key,owner)=>{assert.equal(key,id);assert.equal(owner,'owner-a');return {filename:'file.html',data:Buffer.from('test')};})(request,res);
+  assert.equal(res.filename,'file.html');assert.equal(res.mime,'application/octet-stream');assert.equal(res.bytes.toString(),'test');
+  assert.equal(res.headers['Cache-Control'],'private, no-store');
+  const missing=lidResponse();await downloadHandler(async()=>null)(request,missing);assert.equal(missing.statusCode,404);
+  const invalid=lidResponse();await downloadHandler(()=>assert.fail('invalid id'))({...request,params:{id:'bad'}},invalid);assert.equal(invalid.statusCode,404);
 });
