@@ -233,12 +233,13 @@ npm start              # visit http://localhost:3000</pre>
     <p>HTTP 400: missing or invalid LID. 401/403: missing or invalid credentials. 503: WhatsApp session not ready. 500: unexpected server error. A lookup may return unresolved on a missing mapping, timeout or temporary lookup failure. Successful mappings share the inbound-message cache; no number is inferred from LID digits. Use the original LID with <code>/send</code> if necessary. Examples use fictional identifiers.</p>
 
     <h2 id="webhooks">Webhooks</h2>
-    <p>Add URLs to receive a request on every inbound message. Query params in your URL are preserved.</p>
+    <p>Register a separate URL for each event type. Existing subscriptions and requests without an event remain inbound-message webhooks. Query params in your URL are preserved.</p>
     <h3>Add</h3>
     <pre>POST /webhooks
 x-client-id: YOUR_CID
 x-api-key: YOUR_KEY
-{ "url": "https://yoursite.com/hook?key=abc", "method": "POST", "label": "My CRM" }</pre>
+{ "url": "https://yoursite.com/hook?key=abc", "method": "POST", "label": "My CRM", "event": "message_received" }</pre>
+    <p>Supported events: <code>message_received</code> (default) and <code>auth_rescan_required</code>. Unsupported values return HTTP 400.</p>
     <h3>Toggle / Delete</h3>
     <pre><span class="mt ptch">PATCH</span> /webhooks/:id  { "active": false }
 <span class="mt del">DELETE</span> /webhooks/:id</pre>
@@ -255,6 +256,22 @@ x-api-key: YOUR_KEY
 }</pre>
 
     <p>For direct messages, <code>from</code> is the phone number when available, otherwise the original WhatsApp ID (including @lid). <code>fromId</code> always preserves the original ID; <code>fromLid</code> and <code>fromPhone</code> are null when unavailable. For group messages, <code>from</code> remains the group ID and <code>authorId</code>, <code>authorLid</code> and <code>authorPhone</code> describe the participant when present. GET webhooks omit null fields. Never interpret LID digits as a phone number. Use the original ID for replies when no phone mapping is available.</p>
+
+    <h3>Authentication — rescan required webhook</h3>
+    <pre>POST /webhooks
+x-client-id: YOUR_CID
+x-api-key: YOUR_KEY
+{ "url": "https://yoursite.com/auth-alert", "method": "POST", "label": "WhatsApp reconnect alert", "event": "auth_rescan_required" }</pre>
+    <p>Example event:</p>
+    <pre>{
+  "event": "auth_rescan_required",
+  "eventId": "12345678-1234-4234-8234-123456789012",
+  "phone": "919000000001",
+  "reason": "qr_required",
+  "status": "rescan_required",
+  "timestamp": "2026-11-27T10:30:00.000Z"
+}</pre>
+    <p>Reasons: <code>qr_required</code> (actual QR), <code>auth_failure</code> (library reports failed authentication), <code>logged_out</code>, <code>unpaired</code>. The alert also applies if an already registered account requests a manual rescan. It is not triggered by ordinary disconnects, PM2 restart, Puppeteer target errors or readiness retries without auth evidence. Only active subscriptions of this event receive it. Repeated QR refreshes and reconnects are deduplicated across restarts until genuine Ready. GET uses flat query parameters. No QR code, API key or secret is included. Delivery is best effort with the existing webhook timeout; there is no persistent retry queue. Use the existing toggle/delete endpoints to manage each subscription independently.</p>
 
     <h2 id="examples">Code Examples</h2>
     <h3>Node.js</h3>

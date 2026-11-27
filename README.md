@@ -144,7 +144,7 @@ DELETE /webhooks/:id
 
 ## Webhook Payload
 
-Fired on every inbound message — text, emoji, reaction, sticker, image, etc.
+Fired on every inbound message — text, emoji, reaction, sticker, image, etc. This remains the default `message_received` subscription.
 
 ```json
 {
@@ -241,3 +241,18 @@ Use `POST /send` with `x-client-id`, `x-api-key` and `Content-Type: application/
 ```
 
 Contact requires `name` and international `phone`; `organization` and `email` are optional. A native vCard is sent without editing the address book. Location requires numeric `latitude` (-90 to 90) and `longitude` (-180 to 180); `name`, `address`, and HTTP(S) `url` are optional. Static pins only, not live GPS. Use one payload type per request; invalid or mixed contact/location requests return 400 before sending. Successful responses retain `{ok:true,logId}`; logs use `contact` or `location`. Failed sends return 500 with a log ID; check delivery before retrying. Examples are illustrative; share only authorized information.
+
+### Authentication rescan-required webhook
+
+Register a separate URL using `POST /webhooks` with the existing API headers:
+
+```json
+{
+  "url": "https://example.com/auth-alert",
+  "method": "POST",
+  "label": "WhatsApp reconnect alert",
+  "event": "auth_rescan_required"
+}
+```
+
+Payload contains `event`, `eventId`, `phone`, `reason`, `status: rescan_required`, and ISO `timestamp`. Reasons: `qr_required` (actual QR), `auth_failure` (library reports failed authentication), `logged_out`, or `unpaired`. Existing message hooks stay separate; a hook without an event defaults to `message_received`. Both GET and POST work; each subscription can be paused or deleted independently. Duplicate alerts are suppressed in MongoDB until a genuine Ready event, including across process restarts. Only accounts with an active rescan subscription receive an alert; manual rescan can also trigger it. Ordinary disconnects or readiness retries without authentication evidence do not. No QR data or credentials are sent. Delivery is best effort (existing 8-second timeout), not a durable notification retry queue; use `/status` for independent monitoring. Invalid event values return 400.

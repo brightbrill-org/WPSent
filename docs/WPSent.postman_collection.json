@@ -338,6 +338,37 @@
           }
         },
         {
+          "name": "Add authentication rescan webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"{{webhookUrl}}\",\n  \"method\": \"POST\",\n  \"label\": \"WhatsApp rescan alert\",\n  \"event\": \"auth_rescan_required\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Separate authentication alert subscription. Does not receive message_received events."
+          }
+        },
+        {
           "name": "Toggle webhook",
           "request": {
             "method": "PATCH",
