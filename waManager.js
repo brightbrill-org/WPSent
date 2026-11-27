@@ -3,6 +3,7 @@ const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment 
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { createDirectoryReader } = require('./utils/directory');
 const { createMessageActions, messageIdOf } = require('./utils/messageActions');
+const {createGroupActions}=require('./utils/groupActions');
 const { createInboundCapture } = require('./utils/inboundMedia');
 const inboundMediaStore = require('./services/inboundMediaStore');
 const captureInboundMedia = createInboundCapture({store: inboundMediaStore.store});
@@ -504,6 +505,7 @@ async function resolveLid(phone, lid) {
 function getSession(phone) { return sessions.get(phone) || null; }
 const listDirectory = createDirectoryReader({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 const {markSeen,reply:replyMessage}=createMessageActions({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
+const groupAction=createGroupActions({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 function getStatus(phone)  { return sessions.get(phone)?.status || 'not_started'; }
 function getPairedAt(phone) { return pairedAtMap.get(phone) || 0; }
 function getOwnId(phone) {
@@ -604,6 +606,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, resolveLid, listDirectory, markSeen, replyMessage, restoreAllSessions,
+  onQR, offQR, sendMessage, resolveLid, listDirectory, markSeen, replyMessage, groupAction, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

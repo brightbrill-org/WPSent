@@ -89,6 +89,16 @@
       "key": "messageId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "groupId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "participantPhone",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -769,6 +779,184 @@
               }
             },
             "description": "Blocks registration and deletes WPSent authentication data. Do not run against production as a test."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Group management — use authorized test groups",
+      "item": [
+        {
+          "name": "Create group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/groups",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Project team\",\n  \"participants\": [\n    \"{{participantPhone}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Requires linked WhatsApp account; existing-group actions require group admin. Operates on real groups. Use authorized test participants."
+          }
+        },
+        {
+          "name": "Add group participants",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/groups/{{groupId}}/participants",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participants\": [\n    \"{{participantPhone}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Requires linked WhatsApp account; existing-group actions require group admin. Operates on real groups. Use authorized test participants."
+          }
+        },
+        {
+          "name": "Remove group participants",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/groups/{{groupId}}/participants",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participants\": [\n    \"{{participantPhone}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Requires linked WhatsApp account; existing-group actions require group admin. Operates on real groups. Use authorized test participants."
+          }
+        },
+        {
+          "name": "Change group subject",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/groups/{{groupId}}/subject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Updated project team\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Requires linked WhatsApp account; existing-group actions require group admin. Operates on real groups. Use authorized test participants."
+          }
+        },
+        {
+          "name": "Change group description",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/groups/{{groupId}}/description",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Project coordination and updates\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Requires linked WhatsApp account; existing-group actions require group admin. Operates on real groups. Use authorized test participants."
+          }
+        },
+        {
+          "name": "Get group invite link",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/groups/{{groupId}}/invite",
+            "description": "Requires linked WhatsApp account; existing-group actions require group admin. Operates on real groups. Use authorized test participants."
           }
         }
       ]
