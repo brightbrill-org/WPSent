@@ -46,6 +46,7 @@ Content-Type: application/json
 { "message": "Hello!" }
 ```
 Phone numbers are cleaned automatically — `+880 171...`, `880171...`, `+8801711000000` all work.
+Groups: use `to=120363...@g.us`.
 
 ### Send a poll
 ```
@@ -57,16 +58,23 @@ Content-Type: application/json
   "options": ["Red", "Blue", "Green"]
 }
 ```
-Or nested:
-```json
+Or nested under `"poll"`. Requires at least 2 options. Logged as type `poll`.
+
+### Send a document (base64)
+```
+POST /send?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY&to=8801711000000
+Content-Type: application/json
+
 {
-  "poll": {
-    "question": "What is your favorite color?",
-    "options": ["Red", "Blue", "Green"]
+  "document": {
+    "mimetype": "application/pdf",
+    "filename": "invoice.pdf",
+    "data": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC...",
+    "caption": "Here is the invoice"
   }
 }
 ```
-Requires at least 2 non-empty options. Logged as type `poll`.
+`data` is base64 (optional `data:...;base64,` prefix is stripped). Works for images, PDFs, etc. Logged as type `document`.
 
 ### Get logs
 ```
