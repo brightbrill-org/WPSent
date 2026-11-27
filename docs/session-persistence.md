@@ -33,3 +33,12 @@ A revoked WhatsApp linked device cannot be restored by a backup.
 Run syntax checks: node --check auth/HybridAuth.js && node --check waManager.js &&
 node --check server.js && node --check routes/index.js && node --check ecosystem.config.js.
 Run unit tests: node --test test/hybrid-auth.test.js.
+
+## Graceful shutdown diagnostics
+
+WPSent owns SIGINT, SIGTERM and SIGHUP handling; Puppeteer's independent signal handlers
+are disabled so it cannot exit the process before clean backups finish.
+On a normal PM2 restart with a ready account, expect logs for stopping backups, Chrome
+closure, saving a clean MongoDB backup, MongoDB disconnection and `Shutdown complete: exit code 0`.
+Check `~/.pm2/pm2.log` for the actual exit code. If a stage stalls, inspect the last stage log.
+The 120-second PM2 timeout remains an upper limit; local profiles are preserved.
