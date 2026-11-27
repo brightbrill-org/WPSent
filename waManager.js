@@ -2,6 +2,7 @@ const { Client } = require('whatsapp-web.js');
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { createDirectoryReader } = require('./utils/directory');
+const { createMessageActions, messageIdOf } = require('./utils/messageActions');
 const { createInboundCapture } = require('./utils/inboundMedia');
 const inboundMediaStore = require('./services/inboundMediaStore');
 const captureInboundMedia = createInboundCapture({store: inboundMediaStore.store});
@@ -431,10 +432,12 @@ function createSession(phone) {
       const allowed = () => !shuttingDown && !session.destroyed && !session.initFailed && session.status === 'ready' && !isPhoneBlocked(phone);
       const media = await captureInboundMedia(msg, user._id, allowed);
       if (!allowed()) return;
-      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, body, type, status: 'received', ...(media || {}) });
+      const messageId = messageIdOf(msg);
+      const identity = {chatId: msg.from, ...(messageId ? {messageId} : {})};
+      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, ...identity, body, type, status: 'received', ...(media || {}) });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
-      await fireWebhooks(user._id, { event: 'message_received', ...webhookSender(sender), ...participant, body, type, ...(media ? {logId: String(log._id), ...media} : {}), timestamp: (log.timestamp || new Date()).toISOString() });
+      await fireWebhooks(user._id, { event: 'message_received', ...webhookSender(sender), ...participant, ...identity, body, type, logId: String(log._id), ...(media || {}), timestamp: (log.timestamp || new Date()).toISOString() });
     } catch (e) { console.error('[WA] message handler error:', e.message); }
   });
 
@@ -500,6 +503,7 @@ async function resolveLid(phone, lid) {
 
 function getSession(phone) { return sessions.get(phone) || null; }
 const listDirectory = createDirectoryReader({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
+const {markSeen,reply:replyMessage}=createMessageActions({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 function getStatus(phone)  { return sessions.get(phone)?.status || 'not_started'; }
 function getPairedAt(phone) { return pairedAtMap.get(phone) || 0; }
 function getOwnId(phone) {
@@ -600,6 +604,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, resolveLid, listDirectory, restoreAllSessions,
+  onQR, offQR, sendMessage, resolveLid, listDirectory, markSeen, replyMessage, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };
