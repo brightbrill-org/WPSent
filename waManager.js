@@ -1,4 +1,5 @@
 const { Client } = require('whatsapp-web.js');
+const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { HybridAuth, deleteBackups } = require('./auth/HybridAuth');
 const mongoose               = require('mongoose');
@@ -30,7 +31,12 @@ const path                   = require('path');
 const sessions     = new Map();
 const blockedPhones = new Set();
 function isPhoneBlocked(phone) { return blockedPhones.has(String(phone)); }
-function blockPhone(phone) { blockedPhones.add(String(phone)); }
+function blockPhone(phone) {
+  blockedPhones.add(String(phone));
+  sessions.get(String(phone))?.watchdog?.stop();
+  const timer = reconnectTimers.get(String(phone));
+  if (timer) { clearTimeout(timer); reconnectTimers.delete(String(phone)); }
+}
 
 const qrCallbacks  = new Map();
 const logListeners = new Map();
@@ -40,7 +46,10 @@ const pairedAtMap     = new Map();
 
 const RECONNECT_MS = Number(process.env.WA_RECONNECT_MS) || 5000;
 const STAGGER_MS   = Number(process.env.WA_STAGGER_MS)   || 3000;
-const MAX_RETRIES  = 10;
+const MAX_RETRIES  = positiveInt(process.env.WA_READY_MAX_RETRIES, 3, 0, 20);
+const READY_TIMEOUT_MS = positiveInt(process.env.WA_READY_TIMEOUT_MS, 120000, 1000, 600000);
+const CALLBACK_TIMEOUT_MS = positiveInt(process.env.WA_CALLBACK_TIMEOUT_MS, 20000, 1000, 120000);
+const CLOSE_TIMEOUT_MS = positiveInt(process.env.WA_CLOSE_TIMEOUT_MS, 30000, 1000, 90000);
 const AUTH_TIMEOUT_MS = Number(process.env.WA_AUTH_TIMEOUT_MS) || 300000;
 const QR_POLL_MS = 3000;
 const BACKUP_INTERVAL_MS = Math.max(60000, Number(process.env.WA_BACKUP_INTERVAL_MS) || 60000);
@@ -145,7 +154,9 @@ async function teardown(phone) {
   if (closingSessions.has(phone)) return closingSessions.get(phone);
   const s = sessions.get(phone);
   if (!s) return;
+  if (s.terminal) { sessions.delete(phone); return; }
   s.destroyed = true;
+  s.watchdog?.stop();
   stopQR(s);
   const task = (async () => {
     if (shuttingDown) console.log('[WA] Shutdown: stopping periodic backups: ' + phone);
@@ -153,9 +164,14 @@ async function teardown(phone) {
     if (shuttingDown) console.log('[WA] Shutdown: backups drained: ' + phone);
     // Do not open a second browser on the same profile until the first closes.
     if (shuttingDown) console.log('[WA] Shutdown: closing Chrome: ' + phone);
-    if (s.client.pupBrowser) await s.client.destroy();
-    if (s.initTask) await s.initTask.catch(() => {});
-    if (s.client.pupBrowser?.connected) await s.client.destroy();
+    if (s.client.pupBrowser) await deadline(() => s.client.destroy(), CLOSE_TIMEOUT_MS, 'Chrome shutdown');
+    if (s.initTask) await deadline(() => s.initTask.catch(() => {}), CLOSE_TIMEOUT_MS, 'Initialization shutdown');
+    if (s.client.pupBrowser?.connected) await deadline(() => s.client.destroy(), CLOSE_TIMEOUT_MS, 'Chrome shutdown');
+    // Fail closed rather than starting a second browser on this profile.
+    const process = s.client.pupBrowser?.process?.();
+    if (s.client.pupBrowser?.connected || (process && process.exitCode === null && process.signalCode === null)) {
+      throw new Error('Chrome termination not confirmed');
+    }
     if (shuttingDown) console.log('[WA] Shutdown: Chrome closed: ' + phone);
     if (sessions.get(phone) === s) sessions.delete(phone);
   })();
@@ -174,9 +190,40 @@ function scheduleReconnect(phone, delay = RECONNECT_MS) {
       if (!shuttingDown && !isPhoneBlocked(phone)) createSession(phone);
     } catch (e) {
       console.error('[WA] Reconnect teardown failed:', e.message);
-      if (!shuttingDown) scheduleReconnect(phone, RECONNECT_MS);
+      if (!shuttingDown && !isPhoneBlocked(phone)) {
+        const current = sessions.get(phone);
+        if (current) { current.reconnecting = false; current.status = 'initialization_failed'; }
+        console.error('[WA] Recovery stopped: browser termination not confirmed; controlled PM2 restart required: ' + phone);
+      }
     }
   }, delay));
+}
+
+function failInitialization(phone, session, error) {
+  if (shuttingDown || isPhoneBlocked(phone) || session.destroyed || session.status === 'ready' || session.initFailed || sessions.get(phone) !== session) return;
+  session.initFailed = true;
+  session.watchdog?.stop();
+  stopQR(session);
+  session.auth.canBackup = false;
+  session.status = 'initialization_failed';
+  const n = (retryCount.get(phone) || 0) + 1;
+  retryCount.set(phone, n);
+  console.error('[WA] Initialization failed: ' + phone + ' — ' + (error?.message || String(error)));
+  if (n <= MAX_RETRIES) {
+    const delay = retryDelay(n, RECONNECT_MS);
+    session.status = 'recovering';
+    console.warn('[WA] Readiness recovery ' + n + '/' + MAX_RETRIES + ' in ' + delay + 'ms; preserving authentication: ' + phone);
+    scheduleReconnect(phone, delay);
+  } else {
+    console.error('[WA] Readiness retries exhausted: ' + phone + '; preserving authentication, restart required');
+    // Close the stalled client, but leave a terminal status in the session map.
+    session.reconnecting = true;
+    teardown(phone).then(() => {
+      if (!shuttingDown && !isPhoneBlocked(phone) && !sessions.has(phone) && retryCount.get(phone) === n) {
+        sessions.set(phone, { terminal: true, status: 'initialization_failed', destroyed: true, reconnecting: false });
+      }
+    }).catch(e => console.error('[WA] Exhausted session shutdown failed:', e.message));
+  }
 }
 
 function stopQR(session) {
@@ -257,21 +304,38 @@ function createSession(phone) {
 
   const session = { client, auth, status: 'initializing', qr: null, needsPair: false, destroyed: false, reconnecting: false, authenticated: false, qrTimer: null };
   sessions.set(phone, session);
+  session.watchdog = createWatchdog({ timeoutMs: READY_TIMEOUT_MS, onTimeout: () => {
+    failInitialization(phone, session, new Error('Authenticated but Ready not received within ' + READY_TIMEOUT_MS + 'ms'));
+  }});
+  instrumentAttachment(client, {
+    timeoutMs: CALLBACK_TIMEOUT_MS,
+    log: msg => console.log('[WA] Init ' + phone + ': ' + msg),
+    onFailure: err => failInitialization(phone, session, err)
+  });
+  // afterAuthReady may still be called by a late library callback; never allow
+  // an abandoned initialization to start new backups.
+  const afterAuthReady = auth.afterAuthReady.bind(auth);
+  auth.afterAuthReady = async () => {
+    if (session.destroyed || session.initFailed || isPhoneBlocked(phone) || shuttingDown || session.status !== 'ready') return;
+    await afterAuthReady();
+  };
   const resolveSender = createLidResolver(client);
   session.resolveSender = resolveSender;
 
   client.on('qr', qr => publishQR(phone, session, qr));
   client.on('authenticated', () => {
-    if (session.destroyed) return;
+    if (session.destroyed || session.initFailed || session.status === 'ready' || shuttingDown || isPhoneBlocked(phone)) return;
     session.authenticated = true;
     stopQR(session);
     session.status = 'initializing';
     console.log(`[WA] Authenticated: ${phone}`);
+    session.watchdog.start();
   });
   startQRFallback(phone, session);
 
   client.on('ready', async () => {
-    if (session.destroyed) return;
+    if (session.destroyed || session.initFailed || shuttingDown || isPhoneBlocked(phone)) return;
+    session.watchdog.stop();
     session.authenticated = true;
     stopQR(session);
     session.status = 'ready';
@@ -291,7 +355,8 @@ function createSession(phone) {
   });
 
   client.on('auth_failure', (msg) => {
-    if (session.destroyed) return;
+    if (session.destroyed || session.initFailed) return;
+    session.watchdog.stop();
     session.auth.canBackup = false;
     stopQR(session);
     session.status = 'auth_failure';
@@ -299,7 +364,9 @@ function createSession(phone) {
   });
 
   client.on('disconnected', (reason) => {
-    if (session.destroyed) return;
+    if (session.destroyed || session.initFailed) return;
+    session.watchdog.stop();
+    if (session.status !== 'ready') { failInitialization(phone, session, new Error('Disconnected during initialization: ' + reason)); return; }
     session.auth.canBackup = false;
     stopQR(session);
     session.status = 'disconnected';
@@ -308,7 +375,8 @@ function createSession(phone) {
   });
 
   client.on('error', (err) => {
-    if (session.destroyed) return;
+    if (session.destroyed || session.initFailed) return;
+    if (session.status !== 'ready') { failInitialization(phone, session, err); return; }
     const msg = err?.message || '';
     console.error(`[WA] Error ${phone}:`, msg);
     if (msg.includes('Target closed') || msg.includes('detached Frame') || msg.includes('Session closed') || msg.includes('Protocol error')) {
@@ -320,6 +388,7 @@ function createSession(phone) {
 
   client.on('message', async (msg) => {
     try {
+      if (session.destroyed || session.initFailed || session.status !== 'ready') return;
       if (msg.from === 'status@broadcast' || msg.isStatus) return;
       const user = await WpUser.findOne({ phone, revokedAt: null });
       if (!user || isPhoneBlocked(phone)) return;
@@ -339,6 +408,7 @@ function createSession(phone) {
 
   client.on('message_reaction', async (reaction) => {
     try {
+      if (session.destroyed || session.initFailed || session.status !== 'ready') return;
       const user = await WpUser.findOne({ phone, revokedAt: null });
       if (!user || isPhoneBlocked(phone)) return;
       const body = `[Reaction: ${reaction.reaction || '👍'}]`;
@@ -351,16 +421,7 @@ function createSession(phone) {
     } catch (e) { console.error('[WA] reaction handler error:', e.message); }
   });
 
-  session.initTask = client.initialize().catch(err => {
-    if (session.destroyed) return;
-    console.error(`[WA] Init error for ${phone}:`, err.message);
-    stopQR(session);
-    session.status = 'error';
-    const n = (retryCount.get(phone) || 0) + 1;
-    retryCount.set(phone, n);
-    if (n <= MAX_RETRIES) scheduleReconnect(phone, Math.min(RECONNECT_MS * 2 ** (n - 1), 5 * 60_000));
-    else console.error(`[WA] Giving up on ${phone} after ${MAX_RETRIES} failed attempts`);
-  });
+  session.initTask = client.initialize().catch(err => failInitialization(phone, session, err));
 
   return session;
 }
@@ -462,7 +523,7 @@ async function shutdown() {
   for (const t of reconnectTimers.values()) clearTimeout(t);
   reconnectTimers.clear();
   const results = await Promise.allSettled([...sessions.entries()].map(async ([phone, s]) => {
-    const wasReady = s.status === 'ready' && s.auth.canBackup;
+    const wasReady = s.status === 'ready' && s.auth?.canBackup;
     console.log('[WA] Shutdown: session ' + phone + ', status=' + s.status + ', backupEligible=' + wasReady);
     await teardown(phone);
     // Chrome has closed: on-disk storage is no longer being mutated by the browser.
