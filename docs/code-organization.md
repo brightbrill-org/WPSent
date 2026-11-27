@@ -42,3 +42,10 @@ Run on a checkout with dependencies installed:
 Then smoke-test registration/login, reset, pairing, dashboard, send/receive,
 logs/SSE, webhook CRUD and PM2 restart on a test instance. Do not rescan a
 production account solely to test routing.
+
+## Administration
+
+routes/admin.js owns the administrator HTTP endpoints; services/adminStore.js manages
+administrator credentials, sessions and settings; services/controlLock.js serializes
+control mutations for the single-process deployment; views/admin.js renders the console.
+See [admin-management.md](admin-management.md).

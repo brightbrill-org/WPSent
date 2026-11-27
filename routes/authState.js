@@ -27,7 +27,7 @@ async function userFromCookie(req) {
   if (typeof raw !== 'string') return null;
   const [phone, tag] = raw.split(':');
   if (!phone || !tag) return null;
-  const user = await WpUser.findOne({ phone });
+  const user = await WpUser.findOne({ phone, revokedAt: null });
   return user && safeEq(keyTag(user), tag) ? user : null;
 }
 
@@ -48,7 +48,7 @@ function getPairing(req) {
 }
 
 async function rotateCredentials(phone) {
-  return WpUser.findOneAndUpdate({ phone }, {
+  return WpUser.findOneAndUpdate({ phone, revokedAt: null }, {
     clientId: await uniqueClientId(), apiKey: uuidv4(),
     loginAttempts: 0, lockedUntil: null,
     webhooks: []

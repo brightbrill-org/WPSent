@@ -23,9 +23,22 @@ Open **http://localhost:3000** → enter phone → scan QR → dashboard.
 
 ---
 
+## Administrator console
+
+Open `/admin` to manage registered phones, registration capacity and administrator accounts.
+Generate a strong `ADMIN_BOOTSTRAP_TOKEN` before deployment (`openssl rand -hex 32`),
+then create the first administrator over HTTPS. Later administrator accounts require approval.
+Remove the bootstrap token after setup. Existing WhatsApp phone sign-in is unchanged.
+
+Configure `GITHUB_URL`, `INSTAGRAM_URL`, `SUPPORT_EMAIL`, `CONTRIBUTOR_NAME` and `SITE_URL`
+in `.env` for public support and documentation information. Download the ready-to-import
+Postman collection from `/docs/postman.json` or [the repository](docs/WPSent.postman_collection.json).
+See [administrator setup and API reference](docs/admin-management.md), including the single-instance
+requirement and destructive revocation behavior.
+
 ## Authentication
 
-Every API call requires **both** credentials:
+WhatsApp messaging API calls require **both** credentials. Administrator endpoints use a separate signed session cookie:
 
 | Query param | Header | Description |
 |---|---|---|
@@ -180,3 +193,11 @@ The server auto-detects whichever browser is installed:
 | Google Chrome | ✅ |
 | Chromium | ✅ |
 | Brave / Firefox / Safari | ❌ not supported by Puppeteer |
+
+## WhatsApp readiness recovery
+
+After authentication, WPSent waits for the real library Ready event. Callback checks and
+registrations are traced; timeouts trigger bounded per-phone browser recovery without
+wiping local authentication or MongoDB backups. Configure WA_READY_TIMEOUT_MS,
+WA_CALLBACK_TIMEOUT_MS, WA_READY_MAX_RETRIES and WA_CLOSE_TIMEOUT_MS in .env.
+See [readiness troubleshooting](docs/readiness-watchdog.md).

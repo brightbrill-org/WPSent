@@ -21,6 +21,7 @@ const mongoose     = require('mongoose');
 const cookieParser = require('cookie-parser');
 const wa           = require('./waManager');
 const routes       = require('./routes/index.js');
+const { withControlLock } = require('./services/controlLock');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -80,7 +81,7 @@ async function onSignal(sig) {
   let exitCode = 0;
   const started = Date.now();
   try {
-    await wa.shutdown();
+    await withControlLock(() => wa.shutdown());
     console.log('[WA] Shutdown: all sessions processed');
   } catch (e) { console.error('Shutdown error:', e.message); exitCode = 1; }
   try {

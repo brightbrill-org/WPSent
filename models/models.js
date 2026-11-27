@@ -15,6 +15,8 @@ const wpUserSchema = new mongoose.Schema({
   lockedUntil:   { type: Date, default: null },
   lastSeen:      { type: Date, default: null },
   sessionData:   { type: mongoose.Schema.Types.Mixed, default: null },
+  revokedAt:     { type: Date, default: null },
+  revocationCompleteAt: { type: Date, default: null },
   webhooks:      { type: [webhookSchema], default: [] }
 }, { timestamps: true });
 

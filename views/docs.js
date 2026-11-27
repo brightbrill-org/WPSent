@@ -1,8 +1,9 @@
 'use strict';
 
-const { CONFIG } = require('../routes/config');
+const { HTML_CONFIG: CONFIG, escapeHTML } = require('../routes/config');
 
-function docsHTML(host = 'https://wpsent.xyz') {
+function docsHTML(host) {
+  host = host ? escapeHTML(host) : CONFIG.SITE_URL;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -65,6 +66,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
   <a class="nav-logo" href="/"><div class="nav-icon">💬</div>WPSent</a>
   <div class="nav-links">
     <a class="nav-link on" href="/docs">Docs</a>
+    <a class="nav-link" href="/admin">Admin</a>
     <a class="nav-link gh" href="${CONFIG.GITHUB_URL}" target="_blank">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
       GitHub
@@ -87,10 +89,12 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <h3>Guides</h3>
     <a href="#examples">Code Examples</a>
     <a href="#types">Message Types</a>
+    <a href="#admin">Administration</a>
     <a href="#contact">Contact</a>
   </div>
   <div class="doc">
     <h1 id="intro">WPSent API Docs</h1>
+    <p><a href="/docs/postman.json" download>Download WPSent Postman collection (.json)</a> — import into Postman, configure baseUrl, clientId and apiKey.</p>
     <p>WPSent is a self-hosted WhatsApp API gateway. Link your number once, get a Client ID and Secret Key, then send and receive messages via REST API.</p>
     <div class="cards">
       <div class="card"><div class="icon">&#9889;</div><h4>REST API</h4><p>Simple HTTP, any language</p></div>
@@ -114,7 +118,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <pre>1. Fork: ${CONFIG.GITHUB_URL}
 2. New project on railway.app &rarr; Deploy from GitHub
 3. Add env var: MONGO_URI = your MongoDB Atlas URI
-4. Add env var: SINGLE_USER = true  (optional, limits to 1 user)
+4. Add env var: SINGLE_USER = true (optional, initial phone limit of 1; admin settings override this)
 5. Deploy &mdash; Chromium installs automatically</pre>
     <h3>Local</h3>
     <pre>git clone ${CONFIG.GITHUB_URL}
@@ -262,7 +266,22 @@ app.run(port=5000)</pre>
       </tbody>
     </table>
 
+    <h2 id="admin">Administration</h2>
+    <p>Open <a href="/admin">the administrator console</a>. The first email/password account requires the configured ADMIN_BOOTSTRAP_TOKEN and is automatically approved. Subsequent accounts need approval. Administrators can view and revoke registered phone sessions, set the registration limit, approve or revoke administrators, and reset passwords.</p>
+    <p>Admin mutations require JSON, X-WPSent-Admin: 1 and a signed administrator session cookie (except signup/login/logout). Password reset and revocation invalidate previous sessions. See the Postman collection for admin API requests.</p>
+    <pre>POST /admin/api/signup
+POST /admin/api/login
+POST /admin/api/logout
+GET /admin/api/me
+GET /admin/api/phones
+PUT /admin/api/phone-limit
+POST /admin/api/phones/:phone/revoke
+GET /admin/api/admins
+POST /admin/api/admins/approve
+POST /admin/api/admins/revoke
+POST /admin/api/admins/password</pre>
     <h2 id="contact">Contact &amp; Support</h2>
+    <p>Contributor / support: ${CONFIG.CONTRIBUTOR_NAME}</p>
     <p>Need help setting up your own instance?</p>
     <p>&#128247; Instagram: <a href="${CONFIG.INSTAGRAM_URL}" target="_blank" style="color:var(--green)">${CONFIG.INSTAGRAM_URL}</a></p>
     <p>&#128140; Email: <a href="mailto:${CONFIG.EMAIL}" style="color:var(--green)">${CONFIG.EMAIL}</a></p>

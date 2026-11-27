@@ -14,6 +14,7 @@ require.cache[waPath] = {
 
 const router = require('../routes');
 const { requireKey, requireDashboard } = require('../routes/authMiddleware');
+const { requireAdmin, requireMutation } = require('../routes/admin');
 const { setSession, startPairing, getPairing, pending } = require('../routes/authState');
 const landingHTML = require('../views/landing');
 const dashboardHTML = require('../views/dashboard');
@@ -21,6 +22,7 @@ const docsHTML = require('../views/docs');
 
 const expected = [
   ['get', '/', null],
+  ['get', '/docs/postman.json', null],
   ['get', '/docs', null],
   ['post', '/auth/start', null],
   ['post', '/auth/login', null],
@@ -41,7 +43,19 @@ const expected = [
   ['post', '/webhooks', requireKey],
   ['delete', '/webhooks/:id', requireKey],
   ['patch', '/webhooks/:id', requireKey],
-  ['get', '/lid/resolve', requireKey]
+  ['get', '/lid/resolve', requireKey],
+  ['get', '/admin', null],
+  ['post', '/admin/api/signup', requireMutation],
+  ['post', '/admin/api/login', requireMutation],
+  ['post', '/admin/api/logout', requireMutation],
+  ['get', '/admin/api/me', requireAdmin],
+  ['get', '/admin/api/phones', requireAdmin],
+  ['put', '/admin/api/phone-limit', requireAdmin],
+  ['post', '/admin/api/phones/:phone/revoke', requireAdmin],
+  ['get', '/admin/api/admins', requireAdmin],
+  ['post', '/admin/api/admins/approve', requireAdmin],
+  ['post', '/admin/api/admins/revoke', requireAdmin],
+  ['post', '/admin/api/admins/password', requireAdmin]
 ];
 
 test('all existing routes retain method, path, registration order and auth guard', () => {
@@ -156,4 +170,22 @@ test('API documentation includes the authenticated LID endpoint', () => {
   const docs = docsHTML('https://example.test');
   assert.ok(docs.includes('/lid/resolve'));
   assert.ok(docs.includes('resolved'));
+});
+
+test('administrator guard rejects anonymous requests', async () => {
+  const res = { set(){}, status(code){this.code=code;return this;},json(body){this.body=body;} };
+  await requireAdmin({signedCookies:{}},res,()=>assert.fail('anonymous'));
+  assert.equal(res.code,401);
+});
+test('administrator mutations reject missing CSRF header and foreign origins', () => {
+  const res = {status(code){this.code=code;return this;},json(body){this.body=body;}};
+  requireMutation({get:()=>undefined,is:()=>true},res,()=>assert.fail('missing header'));
+  assert.equal(res.code,403);
+  const headers={'x-wpsent-admin':'1','origin':'https://other.test','host':'wpsent.xyz'};
+  requireMutation({get:k=>headers[k],is:()=>true,protocol:'https'},res,()=>assert.fail('foreign origin'));
+  assert.equal(res.code,403);
+  headers.origin='https://wpsent.xyz';
+  let accepted=false;
+  requireMutation({get:k=>headers[k],is:()=>true,protocol:'https'},res,()=>{accepted=true;});
+  assert.equal(accepted,true);
 });
