@@ -78,13 +78,20 @@ async function onSignal(sig) {
   console.log(`${sig} received — saving WhatsApp sessions before exit...`);
   if (httpServer) httpServer.close();
   let exitCode = 0;
-  try { await wa.shutdown(); }
-  catch (e) { console.error('Shutdown error:', e.message); exitCode = 1; }
-  try { await mongoose.disconnect(); }
-  catch (e) { console.error('MongoDB close error:', e.message); exitCode = 1; }
+  const started = Date.now();
+  try {
+    await wa.shutdown();
+    console.log('[WA] Shutdown: all sessions processed');
+  } catch (e) { console.error('Shutdown error:', e.message); exitCode = 1; }
+  try {
+    await mongoose.disconnect();
+    console.log('MongoDB disconnected');
+  } catch (e) { console.error('MongoDB close error:', e.message); exitCode = 1; }
+  console.log('Shutdown complete: exit code ' + exitCode + ' (' + (Date.now() - started) + ' ms)');
   process.exit(exitCode);
 }
 process.on('SIGINT',  () => onSignal('SIGINT'));
 process.on('SIGTERM', () => onSignal('SIGTERM'));
+process.on('SIGHUP',  () => onSignal('SIGHUP'));
 
 start();

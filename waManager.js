@@ -143,11 +143,15 @@ async function teardown(phone) {
   s.destroyed = true;
   stopQR(s);
   const task = (async () => {
+    if (shuttingDown) console.log('[WA] Shutdown: stopping periodic backups: ' + phone);
     await s.auth.stopBackups();
+    if (shuttingDown) console.log('[WA] Shutdown: backups drained: ' + phone);
     // Do not open a second browser on the same profile until the first closes.
+    if (shuttingDown) console.log('[WA] Shutdown: closing Chrome: ' + phone);
     if (s.client.pupBrowser) await s.client.destroy();
     if (s.initTask) await s.initTask.catch(() => {});
     if (s.client.pupBrowser?.connected) await s.client.destroy();
+    if (shuttingDown) console.log('[WA] Shutdown: Chrome closed: ' + phone);
     if (sessions.get(phone) === s) sessions.delete(phone);
   })();
   closingSessions.set(phone, task);
@@ -235,6 +239,10 @@ function createSession(phone) {
     webVersionCache: { type: 'none' },
     puppeteer: {
       headless: true,
+      // server.js owns shutdown; Puppeteer must not exit Node on SIGINT.
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
       ...(BROWSER_PATH && { executablePath: BROWSER_PATH }),
       protocolTimeout: 300000,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -426,12 +434,17 @@ async function shutdown() {
   reconnectTimers.clear();
   const results = await Promise.allSettled([...sessions.entries()].map(async ([phone, s]) => {
     const wasReady = s.status === 'ready' && s.auth.canBackup;
+    console.log('[WA] Shutdown: session ' + phone + ', status=' + s.status + ', backupEligible=' + wasReady);
     await teardown(phone);
     // Chrome has closed: on-disk storage is no longer being mutated by the browser.
     if (wasReady && !s.auth.loggedOut) {
+      const started = Date.now();
+      console.log('[WA] Shutdown: saving clean MongoDB backup: ' + phone);
       const saved = await s.auth.storeRemoteSession({ clean: true });
       if (!saved) throw new Error('Session not eligible for backup: ' + phone);
-      console.log('[WA] Saved clean session before shutdown: ' + phone);
+      console.log('[WA] Saved clean session before shutdown: ' + phone + ' (' + (Date.now() - started) + ' ms)');
+    } else {
+      console.log('[WA] Shutdown: clean backup skipped (not ready or logged out): ' + phone);
     }
   }));
   for (const result of results) {
