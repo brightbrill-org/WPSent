@@ -193,3 +193,11 @@ The server auto-detects whichever browser is installed:
 | Google Chrome | ✅ |
 | Chromium | ✅ |
 | Brave / Firefox / Safari | ❌ not supported by Puppeteer |
+
+## WhatsApp readiness recovery
+
+After authentication, WPSent waits for the real library Ready event. Callback checks and
+registrations are traced; timeouts trigger bounded per-phone browser recovery without
+wiping local authentication or MongoDB backups. Configure WA_READY_TIMEOUT_MS,
+WA_CALLBACK_TIMEOUT_MS, WA_READY_MAX_RETRIES and WA_CLOSE_TIMEOUT_MS in .env.
+See [readiness troubleshooting](docs/readiness-watchdog.md).

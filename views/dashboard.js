@@ -200,7 +200,9 @@ var WA_TEXT = {
   qr_ready: 'WhatsApp is not linked. Scan the QR code to reconnect.',
   disconnected: 'WhatsApp disconnected. It will try to reconnect; if it stays like this, rescan.',
   auth_failure: 'WhatsApp session lost. Rescan to link your number again.',
-  error: 'WhatsApp session failed to start. Rescan to fix it.',
+  error: 'WhatsApp session failed to start. Contact the administrator.',
+  recovering: 'WhatsApp initialization stalled. Retrying automatically without deleting your session.',
+  initialization_failed: 'WhatsApp initialization failed. Your authentication is retained. Contact the administrator for a controlled restart.' ,
   not_started: 'WhatsApp session is not running. Rescan to start it.',
   initializing: 'WhatsApp is starting...'
 };
