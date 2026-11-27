@@ -2,12 +2,13 @@ require('dotenv').config();
 
 process.on('uncaughtException', (err) => {
   const msg = err?.message || '';
-  if (err?.code === 'ENOENT' || msg.includes('Target closed') || msg.includes('TargetCloseError') ||
+  if (msg.includes('Target closed') || msg.includes('TargetCloseError') ||
       msg.includes('Session closed') || msg.includes('Protocol error') || msg.includes('detached Frame')) {
     console.error('[WARN] Recoverable session error:', msg);
     return;
   }
   console.error('[ERROR] Uncaught exception:', err);
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
@@ -23,6 +24,8 @@ const routes       = require('./routes/index.js');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+let httpServer;
+let closing = false;
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
@@ -60,7 +63,7 @@ async function start() {
 
     const n = await wa.restoreAllSessions();
     console.log(`Restoring ${n} WhatsApp session(s) in the background`);
-    app.listen(PORT, () => {
+    httpServer = app.listen(PORT, () => {
       console.log(`WPSent running on http://localhost:${PORT}`);
     });
   } catch (err) {
@@ -69,13 +72,17 @@ async function start() {
   }
 }
 
-let closing = false;
 async function onSignal(sig) {
   if (closing) return;
   closing = true;
   console.log(`${sig} received — saving WhatsApp sessions before exit...`);
-  try { await wa.shutdown(); } catch (e) { console.error('Shutdown error:', e.message); }
-  process.exit(0);
+  if (httpServer) httpServer.close();
+  let exitCode = 0;
+  try { await wa.shutdown(); }
+  catch (e) { console.error('Shutdown error:', e.message); exitCode = 1; }
+  try { await mongoose.disconnect(); }
+  catch (e) { console.error('MongoDB close error:', e.message); exitCode = 1; }
+  process.exit(exitCode);
 }
 process.on('SIGINT',  () => onSignal('SIGINT'));
 process.on('SIGTERM', () => onSignal('SIGTERM'));

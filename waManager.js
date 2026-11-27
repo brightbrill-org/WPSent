@@ -1,5 +1,5 @@
-const { Client, RemoteAuth } = require('whatsapp-web.js');
-const { MongoStore }         = require('wwebjs-mongo');
+const { Client } = require('whatsapp-web.js');
+const { HybridAuth, deleteBackups } = require('./auth/HybridAuth');
 const mongoose               = require('mongoose');
 const loadModels = () => {
   for (const p of ['./models/models.js', './models/index.js', './models.js']) {
@@ -38,10 +38,11 @@ const STAGGER_MS   = Number(process.env.WA_STAGGER_MS)   || 3000;
 const MAX_RETRIES  = 10;
 const AUTH_TIMEOUT_MS = Number(process.env.WA_AUTH_TIMEOUT_MS) || 300000;
 const QR_POLL_MS = 3000;
+const BACKUP_INTERVAL_MS = Math.max(60000, Number(process.env.WA_BACKUP_INTERVAL_MS) || 60000);
+const closingSessions = new Map();
 const AUTH_ROOT = path.resolve(process.env.WA_REMOTE_AUTH_DIR || path.join(__dirname, '.wwebjs_remote_auth'));
 const restoreTimers = new Set();
 let shuttingDown = false;
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function isRealBrowser(p) {
   try {
@@ -136,14 +137,21 @@ function extractBody(msg) {
 }
 
 async function teardown(phone) {
+  if (closingSessions.has(phone)) return closingSessions.get(phone);
   const s = sessions.get(phone);
-  sessions.delete(phone);
   if (!s) return;
   s.destroyed = true;
   stopQR(s);
-  try { clearInterval(s.auth.backupSync); } catch (_) {}
-  try { await Promise.race([s.client.destroy(), sleep(10_000)]); } catch (_) {}
-  try { clearInterval(s.auth.backupSync); } catch (_) {}
+  const task = (async () => {
+    await s.auth.stopBackups();
+    // Do not open a second browser on the same profile until the first closes.
+    if (s.client.pupBrowser) await s.client.destroy();
+    if (s.initTask) await s.initTask.catch(() => {});
+    if (s.client.pupBrowser?.connected) await s.client.destroy();
+    if (sessions.get(phone) === s) sessions.delete(phone);
+  })();
+  closingSessions.set(phone, task);
+  try { await task; } finally { closingSessions.delete(phone); }
 }
 
 function scheduleReconnect(phone, delay = RECONNECT_MS) {
@@ -152,8 +160,13 @@ function scheduleReconnect(phone, delay = RECONNECT_MS) {
   if (s) s.reconnecting = true;
   reconnectTimers.set(phone, setTimeout(async () => {
     reconnectTimers.delete(phone);
-    await teardown(phone);
-    if (!shuttingDown) createSession(phone);
+    try {
+      await teardown(phone);
+      if (!shuttingDown) createSession(phone);
+    } catch (e) {
+      console.error('[WA] Reconnect teardown failed:', e.message);
+      if (!shuttingDown) scheduleReconnect(phone, RECONNECT_MS);
+    }
   }, delay));
 }
 
@@ -210,13 +223,12 @@ function createSession(phone) {
   }
 
   fs.mkdirSync(AUTH_ROOT, { recursive: true, mode: 0o700 });
-  const store  = new MongoStore({ mongoose });
-  const auth   = new RemoteAuth({
-      clientId:             phone,
-      store,
-      dataPath:             AUTH_ROOT,
-      backupSyncIntervalMs: 60_000
-    });
+  const auth = new HybridAuth({
+    clientId: String(phone),
+    mongoose,
+    dataPath: AUTH_ROOT,
+    backupSyncIntervalMs: BACKUP_INTERVAL_MS
+  });
   const client = new Client({
     authStrategy: auth,
     authTimeoutMs: AUTH_TIMEOUT_MS,
@@ -264,6 +276,7 @@ function createSession(phone) {
 
   client.on('auth_failure', (msg) => {
     if (session.destroyed) return;
+    session.auth.canBackup = false;
     stopQR(session);
     session.status = 'auth_failure';
     console.error(`[WA] Auth failure for ${phone}:`, msg);
@@ -271,6 +284,7 @@ function createSession(phone) {
 
   client.on('disconnected', (reason) => {
     if (session.destroyed) return;
+    session.auth.canBackup = false;
     stopQR(session);
     session.status = 'disconnected';
     console.log(`[WA] Disconnected ${phone}: ${reason} — reconnecting`);
@@ -314,7 +328,7 @@ function createSession(phone) {
     } catch (e) { console.error('[WA] reaction handler error:', e.message); }
   });
 
-  client.initialize().catch(err => {
+  session.initTask = client.initialize().catch(err => {
     if (session.destroyed) return;
     console.error(`[WA] Init error for ${phone}:`, err.message);
     stopQR(session);
@@ -328,31 +342,15 @@ function createSession(phone) {
   return session;
 }
 
-function removePath(p) {
-  try { fs.rmSync(p, { recursive: true, force: true }); } catch (_) {}
-}
-
-function wipeLocalFiles(phone) {
-  if (!/^\d+$/.test(String(phone))) throw new Error('Invalid session phone');
-  const name = `RemoteAuth-${phone}`;
-  removePath(path.join(AUTH_ROOT, name));
-  removePath(path.join(AUTH_ROOT, `${name}.zip`));
-  removePath(path.join(process.cwd(), `${name}.zip`));
-}
-
 async function wipeRemoteSession(phone) {
   if (!/^\d+$/.test(String(phone))) throw new Error('Invalid session phone');
-  const name = `RemoteAuth-${phone}`;
-  try { await new MongoStore({ mongoose }).delete({ session: name }); }
-  catch (e) { console.warn(`[WA] Could not delete remote session for ${phone}:`, e.message); }
-  const db = mongoose.connection && mongoose.connection.db;
-  if (db) {
-    for (const part of ['files', 'chunks']) {
-      try { await db.collection(`whatsapp-${name}.${part}`).deleteMany({}); }
-      catch (e) { console.warn(`[WA] Could not clear ${name}.${part}:`, e.message); }
-    }
+  const name = 'RemoteAuth-' + phone;
+  await deleteBackups(mongoose, name);
+  const roots = new Set([AUTH_ROOT, path.join(__dirname, '.wwebjs_remote_auth')]);
+  for (const root of roots) {
+    await fs.promises.rm(path.join(root, name), { recursive: true, force: true });
+    await fs.promises.rm(path.join(root, name + '.zip'), { force: true });
   }
-  wipeLocalFiles(phone);
 }
 
 async function destroySession(phone, { wipe = false } = {}) {
@@ -426,18 +424,20 @@ async function shutdown() {
   restoreTimers.clear();
   for (const t of reconnectTimers.values()) clearTimeout(t);
   reconnectTimers.clear();
-  await Promise.allSettled([...sessions.entries()].map(async ([phone, s]) => {
-    s.destroyed = true;
-    stopQR(s);
-    try { clearInterval(s.auth.backupSync); } catch (_) {}
-    if (s.status === 'ready') {
-      try {
-        await Promise.race([s.auth.storeRemoteSession({ emit: false }), sleep(20_000)]);
-        console.log(`[WA] Saved session before shutdown: ${phone}`);
-      } catch (e) { console.warn(`[WA] Could not save session ${phone}:`, e.message); }
+  const results = await Promise.allSettled([...sessions.entries()].map(async ([phone, s]) => {
+    const wasReady = s.status === 'ready' && s.auth.canBackup;
+    await teardown(phone);
+    // Chrome has closed: on-disk storage is no longer being mutated by the browser.
+    if (wasReady && !s.auth.loggedOut) {
+      const saved = await s.auth.storeRemoteSession({ clean: true });
+      if (!saved) throw new Error('Session not eligible for backup: ' + phone);
+      console.log('[WA] Saved clean session before shutdown: ' + phone);
     }
-    try { await Promise.race([s.client.destroy(), sleep(5_000)]); } catch (_) {}
   }));
+  for (const result of results) {
+    if (result.status === 'rejected') console.error('[WA] Shutdown session error:', result.reason?.message);
+  }
+  if (results.some(r => r.status === 'rejected')) throw new Error('One or more WhatsApp sessions failed to shut down or back up');
 }
 
 async function restoreAllSessions() {
