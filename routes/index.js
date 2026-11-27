@@ -221,7 +221,7 @@ router.post('/auth/reset', ah(async (req, res) => {
     return res.json({ ok: true, mode: 'code' });
   }
 
-  if (st === 'auth_failure') await wa.destroySession(phone, { wipe: true });
+  if (st === 'auth_failure') await wa.destroySession(phone);
   else if (st === 'error')   await wa.destroySession(phone);
   if (wa.getStatus(phone) === 'not_started') wa.createSession(phone);
   startPairing(req, res, phone, true);
