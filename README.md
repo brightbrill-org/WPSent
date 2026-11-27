@@ -86,6 +86,30 @@ GET /logs?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY
 GET /status?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY
 ```
 
+### Resolve WhatsApp LID
+
+GET /lid/resolve?lid=123456789012345%40lid
+
+```bash
+curl 'https://wpsent.xyz/lid/resolve?lid=123456789012345%40lid' \
+  -H 'x-client-id: YOUR_CLIENT_ID' \
+  -H 'x-api-key: YOUR_SECRET_KEY'
+```
+
+HTTP 200 (resolved):
+
+```json
+{"ok":true,"lid":"123456789012345@lid","phone":"919876543210","phoneId":"919876543210@c.us","resolved":true}
+```
+
+HTTP 200 (unavailable):
+
+```json
+{"ok":true,"lid":"123456789012345@lid","phone":null,"phoneId":null,"resolved":false}
+```
+
+The full LID is required. Missing/malformed input returns 400, missing/invalid credentials 401/403, a non-ready session 503, unexpected failures 500. The lookup is scoped to the authenticated account, shares the existing per-session cache and timeout, and never guesses numbers. An unresolved result may be temporary. Responses are not cacheable by HTTP clients. This API does not send a message or modify message history. Existing query-string authentication also works; prefer headers to avoid logging credentials in URLs. Examples are fictional.
+
 ### Webhooks
 ```bash
 # Add
@@ -111,11 +135,16 @@ Fired on every inbound message — text, emoji, reaction, sticker, image, etc.
 {
   "event":     "message_received",
   "from":      "8801711000000",
+  "fromId":    "123456789012345@lid",
+  "fromLid":   "123456789012345@lid",
+  "fromPhone": "8801711000000",
   "body":      "Hello!",
   "type":      "text",
   "timestamp": "2024-01-01T10:30:00.000Z"
 }
 ```
+
+For unresolved LIDs, `from` retains the original ID and `fromPhone` is null. Group messages retain the group ID and may include `authorId`, `authorLid`, and `authorPhone`. GET webhooks omit null fields.
 
 **Types:** `text` · `reaction` → `[Reaction: 👍]` · `sticker` · `image` · `video` · `audio` · `document` · `location` · `contact`
 

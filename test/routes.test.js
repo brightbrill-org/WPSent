@@ -40,7 +40,8 @@ const expected = [
   ['get', '/status', requireKey],
   ['post', '/webhooks', requireKey],
   ['delete', '/webhooks/:id', requireKey],
-  ['patch', '/webhooks/:id', requireKey]
+  ['patch', '/webhooks/:id', requireKey],
+  ['get', '/lid/resolve', requireKey]
 ];
 
 test('all existing routes retain method, path, registration order and auth guard', () => {
@@ -105,4 +106,54 @@ test('page renderers retain existing titles and dynamic values', () => {
   const docs = docsHTML('https://example.test');
   assert.match(docs, /<title>WPSent API Docs<\/title>/);
   assert.ok(docs.includes('https://example.test'));
+});
+
+const wa = require('../waManager');
+const lidRoute = router.stack.find(layer => layer.route?.path === '/lid/resolve').route;
+const lidHandler = lidRoute.stack[1].handle;
+function lidResponse() {
+  return {
+    statusCode: 200, headers: {},
+    set(key, value) { this.headers[key] = value; return this; },
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+  };
+}
+
+test('LID lookup rejects missing or malformed IDs and duplicate parameters', async () => {
+  for (const lid of [undefined, '1234', '919876543210@c.us', '123@g.us', ['123@lid', '456@lid']]) {
+    const res = lidResponse();
+    await lidHandler({ query: { lid }, wpUser: { phone: 'account-a' } }, res);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.headers['Cache-Control'], 'no-store');
+  }
+});
+
+test('LID lookup uses only authenticated account, returns resolved and unresolved results', async () => {
+  const lid = '123456789012345@lid';
+  for (const phone of ['919876543210', null]) {
+    wa.resolveLid = async (account, id) => {
+      assert.equal(account, 'account-a');
+      assert.equal(id, lid);
+      return { lid, phone, phoneId: phone ? phone + '@c.us' : null, resolved: !!phone };
+    };
+    const res = lidResponse();
+    await lidHandler({ query: { lid, phone: 'other-account' }, wpUser: { phone: 'account-a' } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { ok: true, lid, phone, phoneId: phone ? phone + '@c.us' : null, resolved: !!phone });
+  }
+});
+
+test('LID lookup returns 503 for a session that is not ready', async () => {
+  wa.resolveLid = async () => { throw Object.assign(new Error('not ready'), { code: 'WA_NOT_READY' }); };
+  const res = lidResponse();
+  await lidHandler({ query: { lid: '123@lid' }, wpUser: { phone: 'account-a' } }, res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error, 'WhatsApp session not ready');
+});
+
+test('API documentation includes the authenticated LID endpoint', () => {
+  const docs = docsHTML('https://example.test');
+  assert.ok(docs.includes('/lid/resolve'));
+  assert.ok(docs.includes('resolved'));
 });

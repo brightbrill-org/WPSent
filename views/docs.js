@@ -82,6 +82,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#send">Send Message</a>
     <a href="#logs">Message Logs</a>
     <a href="#status">Status</a>
+    <a href="#lid">Resolve LID</a>
     <a href="#webhooks">Webhooks</a>
     <h3>Guides</h3>
     <a href="#examples">Code Examples</a>
@@ -173,6 +174,30 @@ npm start              # visit http://localhost:3000</pre>
     <pre>{ "phone": "8801711000000", "status": "ready" }</pre>
     <p>Status values: <code>initializing</code>, <code>qr_ready</code>, <code>ready</code>, <code>disconnected</code>, <code>auth_failure</code>, <code>error</code>.</p>
 
+    <h2 id="lid">Resolve WhatsApp LID</h2>
+    <p><span class="mt get">GET</span><code>/lid/resolve?lid=123456789012345%40lid</code></p>
+    <p>Resolve a known WhatsApp LID to its international phone number using your authenticated, ready WhatsApp session. Supply the complete LID including <code>@lid</code>. Authentication uses the existing client ID and API key (headers recommended).</p>
+    <pre>curl "${host}/lid/resolve?lid=123456789012345%40lid" \\
+  -H "x-client-id: YOUR_CID" \\
+  -H "x-api-key: YOUR_KEY"</pre>
+    <h3>Resolved — HTTP 200</h3>
+    <pre>{
+  "ok": true,
+  "lid": "123456789012345@lid",
+  "phone": "919876543210",
+  "phoneId": "919876543210@c.us",
+  "resolved": true
+}</pre>
+    <h3>Mapping unavailable — HTTP 200</h3>
+    <pre>{
+  "ok": true,
+  "lid": "123456789012345@lid",
+  "phone": null,
+  "phoneId": null,
+  "resolved": false
+}</pre>
+    <p>HTTP 400: missing or invalid LID. 401/403: missing or invalid credentials. 503: WhatsApp session not ready. 500: unexpected server error. A lookup may return unresolved on a missing mapping, timeout or temporary lookup failure. Successful mappings share the inbound-message cache; no number is inferred from LID digits. Use the original LID with <code>/send</code> if necessary. Examples use fictional identifiers.</p>
+
     <h2 id="webhooks">Webhooks</h2>
     <p>Add URLs to receive a request on every inbound message. Query params in your URL are preserved.</p>
     <h3>Add</h3>
@@ -187,10 +212,15 @@ x-api-key: YOUR_KEY
     <pre>{
   "event":     "message_received",
   "from":      "8801711000000",
+  "fromId":    "123456789012345@lid",
+  "fromLid":   "123456789012345@lid",
+  "fromPhone": "8801711000000",
   "body":      "Hello!",
   "type":      "text",
   "timestamp": "2024-01-01T10:30:00.000Z"
 }</pre>
+
+    <p>For direct messages, <code>from</code> is the phone number when available, otherwise the original WhatsApp ID (including @lid). <code>fromId</code> always preserves the original ID; <code>fromLid</code> and <code>fromPhone</code> are null when unavailable. For group messages, <code>from</code> remains the group ID and <code>authorId</code>, <code>authorLid</code> and <code>authorPhone</code> describe the participant when present. GET webhooks omit null fields. Never interpret LID digits as a phone number. Use the original ID for replies when no phone mapping is available.</p>
 
     <h2 id="examples">Code Examples</h2>
     <h3>Node.js</h3>

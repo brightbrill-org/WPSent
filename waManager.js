@@ -1,4 +1,5 @@
 const { Client } = require('whatsapp-web.js');
+const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { HybridAuth, deleteBackups } = require('./auth/HybridAuth');
 const mongoose               = require('mongoose');
 const loadModels = () => {
@@ -97,7 +98,7 @@ async function fireWebhooks(userId, payload) {
         await axios.post(wh.url, payload, { timeout: 8000 });
       } else {
         const sep    = wh.url.includes('?') ? '&' : '?';
-        const params = new URLSearchParams(payload).toString();
+        const params = new URLSearchParams(Object.entries(payload).filter(([, value]) => value != null)).toString();
         await axios.get(`${wh.url}${sep}${params}`, { timeout: 8000 });
       }
       console.log(`[WH] OK: ${wh.url}`);
@@ -251,6 +252,8 @@ function createSession(phone) {
 
   const session = { client, auth, status: 'initializing', qr: null, needsPair: false, destroyed: false, reconnecting: false, authenticated: false, qrTimer: null };
   sessions.set(phone, session);
+  const resolveSender = createLidResolver(client);
+  session.resolveSender = resolveSender;
 
   client.on('qr', qr => publishQR(phone, session, qr));
   client.on('authenticated', () => {
@@ -317,10 +320,14 @@ function createSession(phone) {
       if (!user) return;
       const type = classifyMessage(msg);
       const body = extractBody(msg);
-      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', from: msg.from, body, type, status: 'received' });
+      const sender = await resolveSender(msg.from);
+      // Group chat identity remains in from; expose the participant separately.
+      const author = msg.author ? await resolveSender(msg.author) : null;
+      const participant = author ? { authorId: author.fromId, authorPhone: author.fromPhone, authorLid: author.fromLid } : {};
+      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, body, type, status: 'received' });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
-      await fireWebhooks(user._id, { event: 'message_received', from: msg.from.replace('@c.us',''), body, type, timestamp: (log.timestamp || new Date()).toISOString() });
+      await fireWebhooks(user._id, { event: 'message_received', ...webhookSender(sender), ...participant, body, type, timestamp: (log.timestamp || new Date()).toISOString() });
     } catch (e) { console.error('[WA] message handler error:', e.message); }
   });
 
@@ -329,10 +336,11 @@ function createSession(phone) {
       const user = await WpUser.findOne({ phone });
       if (!user) return;
       const body = `[Reaction: ${reaction.reaction || '👍'}]`;
-      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', from: reaction.senderId || 'unknown', body, type: 'reaction', status: 'received' });
+      const sender = await resolveSender(reaction.senderId);
+      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, body, type: 'reaction', status: 'received' });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
-      await fireWebhooks(user._id, { event: 'message_received', from: (reaction.senderId || 'unknown').replace('@c.us',''), body, type: 'reaction', timestamp: (log.timestamp || new Date()).toISOString() });
+      await fireWebhooks(user._id, { event: 'message_received', ...webhookSender(sender), body, type: 'reaction', timestamp: (log.timestamp || new Date()).toISOString() });
     } catch (e) { console.error('[WA] reaction handler error:', e.message); }
   });
 
@@ -375,6 +383,17 @@ async function destroySession(phone, { wipe = false } = {}) {
 async function rescanSession(phone) {
   await destroySession(phone, { wipe: true });
   return createSession(phone);
+}
+
+async function resolveLid(phone, lid) {
+  const session = sessions.get(phone);
+  if (!session || session.destroyed || session.status !== 'ready') {
+    const err = new Error('WhatsApp session not ready');
+    err.code = 'WA_NOT_READY';
+    throw err;
+  }
+  const sender = await session.resolveSender(lid);
+  return { lid: sender.fromLid, phone: sender.fromPhone, phoneId: sender.fromPhone ? sender.fromPhone + '@c.us' : null, resolved: !!sender.fromPhone };
 }
 
 function getSession(phone) { return sessions.get(phone) || null; }
@@ -469,6 +488,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId,
-  onQR, offQR, sendMessage, restoreAllSessions,
+  onQR, offQR, sendMessage, resolveLid, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };
