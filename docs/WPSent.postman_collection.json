@@ -74,6 +74,11 @@
       "key": "targetPhone",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "mediaId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -112,6 +117,24 @@
               }
             ],
             "url": "{{baseUrl}}/logs"
+          }
+        },
+        {
+          "name": "Download inbound media",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/media/{{mediaId}}",
+            "description": "Set mediaId from inbound webhook/log metadata. Save the binary response as a file. Requires the owning account API key; expires by TTL."
           }
         },
         {

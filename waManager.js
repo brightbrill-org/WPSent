@@ -1,6 +1,9 @@
 const { Client } = require('whatsapp-web.js');
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
+const { createInboundCapture } = require('./utils/inboundMedia');
+const inboundMediaStore = require('./services/inboundMediaStore');
+const captureInboundMedia = createInboundCapture({store: inboundMediaStore.store});
 const { HybridAuth, deleteBackups } = require('./auth/HybridAuth');
 const mongoose               = require('mongoose');
 const loadModels = () => {
@@ -127,7 +130,7 @@ function classifyMessage(msg) {
   if (t === 'sticker')  return 'sticker';
   if (t === 'image')    return 'image';
   if (t === 'video')    return 'video';
-  if (t === 'audio')    return 'audio';
+  if (t === 'audio' || t === 'ptt') return 'audio';
   if (t === 'document') return 'document';
   if (t === 'location') return 'location';
   if (t === 'vcard' || t === 'multi_vcard') return 'contact';
@@ -142,7 +145,7 @@ function extractBody(msg) {
   if (msg.type === 'sticker')  return '[Sticker]';
   if (msg.type === 'image')    return msg.body || '[Image]';
   if (msg.type === 'video')    return '[Video]';
-  if (msg.type === 'audio')    return '[Audio]';
+  if (msg.type === 'audio' || msg.type === 'ptt') return '[Audio]';
   if (msg.type === 'document') return `[Document: ${msg.body || 'file'}]`;
   if (msg.type === 'location') return `[Location: ${msg.location?.latitude || '?'},${msg.location?.longitude || '?'}]`;
   if (msg.type === 'vcard' || msg.type === 'multi_vcard') return '[Contact card]';
@@ -399,10 +402,13 @@ function createSession(phone) {
       const author = msg.author ? await resolveSender(msg.author) : null;
       const participant = author ? { authorId: author.fromId, authorPhone: author.fromPhone, authorLid: author.fromLid } : {};
       if (isPhoneBlocked(phone)) return;
-      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, body, type, status: 'received' });
+      const allowed = () => !shuttingDown && !session.destroyed && !session.initFailed && session.status === 'ready' && !isPhoneBlocked(phone);
+      const media = await captureInboundMedia(msg, user._id, allowed);
+      if (!allowed()) return;
+      const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, body, type, status: 'received', ...(media || {}) });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
-      await fireWebhooks(user._id, { event: 'message_received', ...webhookSender(sender), ...participant, body, type, timestamp: (log.timestamp || new Date()).toISOString() });
+      await fireWebhooks(user._id, { event: 'message_received', ...webhookSender(sender), ...participant, body, type, ...(media ? {logId: String(log._id), ...media} : {}), timestamp: (log.timestamp || new Date()).toISOString() });
     } catch (e) { console.error('[WA] message handler error:', e.message); }
   });
 
