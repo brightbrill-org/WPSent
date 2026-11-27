@@ -187,10 +187,15 @@ x-api-key: YOUR_KEY
     <pre>{
   "event":     "message_received",
   "from":      "8801711000000",
+  "fromId":    "123456789012345@lid",
+  "fromLid":   "123456789012345@lid",
+  "fromPhone": "8801711000000",
   "body":      "Hello!",
   "type":      "text",
   "timestamp": "2024-01-01T10:30:00.000Z"
 }</pre>
+
+    <p>For direct messages, <code>from</code> is the phone number when available, otherwise the original WhatsApp ID (including @lid). <code>fromId</code> always preserves the original ID; <code>fromLid</code> and <code>fromPhone</code> are null when unavailable. For group messages, <code>from</code> remains the group ID and <code>authorId</code>, <code>authorLid</code> and <code>authorPhone</code> describe the participant when present. GET webhooks omit null fields. Never interpret LID digits as a phone number. Use the original ID for replies when no phone mapping is available.</p>
 
     <h2 id="examples">Code Examples</h2>
     <h3>Node.js</h3>

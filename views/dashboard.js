@@ -331,7 +331,10 @@ function renderLogs() {
 function logRow(l, isNew) {
   var d   = new Date(l.timestamp);
   var ts  = d.toLocaleString('en-GB',{hour12:false,year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-  var num = String((l.direction==='outbound' ? l.to : l.from) || '').replace('@c.us','');
+  var num = String((l.direction==='outbound' ? l.to : (l.fromPhone || l.from)) || '').replace('@c.us','');
+  var identity = l.direction==='inbound' && l.fromLid && l.fromPhone ? ' title="'+esc(l.fromLid)+'"' : '';
+  var author = l.authorPhone || l.authorId;
+  var participant = author ? '<div style="color:var(--muted);font-size:11px">'+esc(author)+'</div>' : '';
   var dir = l.direction==='outbound' ? '<span class="b bo">&#8593; Out</span>' : '<span class="b br">&#8595; In</span>';
   var typ = (l.type && l.type!=='text') ? '<span class="b bx">'+esc(l.type)+'</span>' : '<span style="color:var(--muted);font-size:11px">text</span>';
   var st  = l.status==='sent' ? '<span class="b bs">&#10003; Sent</span>' :
@@ -340,7 +343,7 @@ function logRow(l, isNew) {
   var err = l.error ? '<div style="color:var(--danger);font-size:11px;margin-top:2px">'+esc(l.error)+'</div>' : '';
   return '<tr'+(isNew?' class="nr"':'')+'>' +
     '<td class="mono" style="white-space:nowrap;color:var(--muted)">'+ts+'</td>' +
-    '<td>'+dir+'</td><td class="mono">'+esc(num)+'</td><td>'+typ+'</td>' +
+    '<td>'+dir+'</td><td class="mono"'+identity+'>'+esc(num)+participant+'</td><td>'+typ+'</td>' +
     '<td>'+esc(l.body)+err+'</td><td>'+st+'</td></tr>';
 }
 
