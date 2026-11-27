@@ -89,6 +89,8 @@ Content-Type: application/json
 ```
 `data` is base64 (optional `data:...;base64,` prefix is stripped). Works for images, PDFs, etc. Logged as type `document`.
 
+Authenticated `POST /send` accepts up to **20 MiB of JSON** by default. Set `WA_SEND_JSON_LIMIT_MB` in `.env` to an integer from 1 to 50 to change this limit (invalid values fall back to 20). Base64 expands binary data by approximately one third, so keep the original file below roughly 15 MiB at the default setting, with additional room for JSON metadata. Send media as `application/json`, not a URL-encoded form. Other endpoints and URL-encoded forms retain the 100 KiB limit. Requests above the configured JSON limit return HTTP 413; reverse-proxy and WhatsApp media limits can be lower.
+
 ### Get logs
 ```
 GET /logs?clientid=YOUR_CLIENT_ID&key=YOUR_SECRET_KEY

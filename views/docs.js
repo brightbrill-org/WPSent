@@ -155,6 +155,7 @@ npm start              # visit http://localhost:3000</pre>
   -d '{"poll": {"question": "What is your favorite color?", "options": ["Red", "Blue", "Green"]}}'</pre>
 
     <h3>Document (base64)</h3>
+    <p>Authenticated <code>POST /send</code> accepts JSON bodies up to 20 MiB by default, configurable by the server administrator (1&ndash;50 MiB). Base64 adds about 33% overhead, so the default allows an original file slightly below 15 MiB. Use <code>application/json</code>. Oversized requests return HTTP 413; proxy and WhatsApp limits may be lower. Other endpoints and URL-encoded forms retain the 100 KiB limit.</p>
     <p>To send a document, provide a <code>document</code> object with <code>mimetype</code>, <code>filename</code>, and base64 <code>data</code>. A <code>data:...;base64,</code> prefix is stripped if present. <code>document.caption</code> is optional and is stored on the message log.</p>
     <table>
       <thead><tr><th>Field</th><th>Where</th><th>Notes</th></tr></thead>
