@@ -363,21 +363,31 @@ router.post('/send', requireKey, ah(async (req, res) => {
 
   let payload, logBody, logType;
 
-  const pollQuestion = str(req.body?.question || req.body?.poll?.question);
-  const pollOptions  = req.body?.options || req.body?.poll?.options;
-  if (pollQuestion && Array.isArray(pollOptions) && pollOptions.length >= 2) {
-    const { Poll } = require('whatsapp-web.js');
-    const options = pollOptions.map(o => str(o)).filter(Boolean);
-    if (options.length < 2) return res.status(400).json({ error: 'poll requires at least 2 non-empty options' });
-    payload = new Poll(pollQuestion, options);
-    logBody = `Poll: ${pollQuestion} (${options.join(', ')})`;
-    logType = 'poll';
+  const doc = req.body?.document;
+  if (doc && typeof doc === 'object' && doc.data && doc.mimetype && doc.filename) {
+    const { MessageMedia } = require('whatsapp-web.js');
+    const data = String(doc.data).replace(/^data:[^;]+;base64,/, '');
+    if (!data) return res.status(400).json({ error: 'document.data is required (base64)' });
+    payload = new MessageMedia(doc.mimetype, data, doc.filename);
+    logBody = `[Document: ${doc.filename}]${doc.caption ? ' ' + str(doc.caption) : ''}`;
+    logType = 'document';
   } else {
-    const message = str(req.body?.message || req.body?.body || req.query.message);
-    if (!message) return res.status(400).json({ error: 'message is required (or provide question + options for a poll)' });
-    payload = message;
-    logBody = message;
-    logType = 'text';
+    const pollQuestion = str(req.body?.question || req.body?.poll?.question);
+    const pollOptions  = req.body?.options || req.body?.poll?.options;
+    if (pollQuestion && Array.isArray(pollOptions) && pollOptions.length >= 2) {
+      const { Poll } = require('whatsapp-web.js');
+      const options = pollOptions.map(o => str(o)).filter(Boolean);
+      if (options.length < 2) return res.status(400).json({ error: 'poll requires at least 2 non-empty options' });
+      payload = new Poll(pollQuestion, options);
+      logBody = `Poll: ${pollQuestion} (${options.join(', ')})`;
+      logType = 'poll';
+    } else {
+      const message = str(req.body?.message || req.body?.body || req.query.message);
+      if (!message) return res.status(400).json({ error: 'message is required (or provide document / question + options for a poll)' });
+      payload = message;
+      logBody = message;
+      logType = 'text';
+    }
   }
 
   let status = 'sent', error = null;
@@ -1422,6 +1432,21 @@ npm start              # visit http://localhost:3000</pre>
     <pre>curl -X POST "${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
   -H "Content-Type: application/json" \\
   -d '{"poll": {"question": "What is your favorite color?", "options": ["Red", "Blue", "Green"]}}'</pre>
+
+    <h3>Document (base64)</h3>
+    <p>To send a document, provide a <code>document</code> object with <code>mimetype</code>, <code>filename</code>, and base64 <code>data</code>. A <code>data:...;base64,</code> prefix is stripped if present. <code>document.caption</code> is optional and is stored on the message log.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Where</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>document.mimetype<span class="req">required</span></td><td>JSON body</td><td>MIME type, e.g. <code>application/pdf</code></td></tr>
+        <tr><td>document.filename<span class="req">required</span></td><td>JSON body</td><td>File name shown in WhatsApp</td></tr>
+        <tr><td>document.data<span class="req">required</span></td><td>JSON body</td><td>Base64 file contents. A <code>data:</code> prefix is allowed.</td></tr>
+        <tr><td>document.caption</td><td>JSON body</td><td>Optional. Recorded in the log; not sent as a WhatsApp caption.</td></tr>
+      </tbody>
+    </table>
+    <pre>curl -X POST "${host}/send?clientid=YOUR_CID&key=YOUR_KEY&to=8801711000000" \\
+  -H "Content-Type: application/json" \\
+  -d '{"document": {"mimetype": "application/pdf", "filename": "invoice.pdf", "data": "JVBERi0xLjc...", "caption": "Invoice"}}'</pre>
 
     <h2 id="logs">Message Logs</h2>
     <p><span class="mt get">GET</span><code>/logs</code> &mdash; last 100 messages, oldest auto-deleted.</p>
