@@ -1,1 +1,1 @@
-$(python3 -c 'print(open("/tmp/routes_index_docs.js").read())')
+PLACEHOLDER_TO_BE_REPLACED
