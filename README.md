@@ -294,3 +294,11 @@ Group creation compatibility: WPSent prepares the lazy-loaded WhatsApp Web group
 Group description compatibility: a read-only preflight checks the native library's required modules and group metadata before updating the description. Missing dependencies return 503 with a diagnostic reason; native exceptions return 502 (503 for interrupted browser connections) and details are recorded in server logs. No automatic mutation retries. The browser adapter uses the current named-object signature of setGroupDescription (WAHA issue #2199) instead of the outdated positional call in whatsapp-web.js 1.34.8.
 
 Invite retrieval compatibility: load the WhatsApp Web invite drawer bundle only if its native invite query is missing (upstream wwebjs #201916), then use getInviteCode. Missing modules return 503; native query failures return 502 or 503 for connection loss. Never reset links or log invite codes.
+
+### Native images, videos and voice notes
+
+Authenticated `POST /send` accepts exactly one of `image`, `video`, `voiceNote`: `{mimetype,data,filename?,caption?}`. JPEG/PNG, MP4 and Ogg Opus respectively. Captions only for image/video (1024 chars). Standard padded base64 or matching data URL; 10 MiB decoded cap and existing JSON limit. Header checks, no transcoding. Returns `ok,chatId,messageId,type,logId`. Native voice uses sendAudioAsVoice; outbound type voice_note. One outstanding send per account, two globally; 90-second deadline. No automatic retry. Inbound capture reused: image/video mediaKind and mediaCaption; audio/PTT mediaKind audio/voice_note and isVoiceNote flag. Legacy inbound audio type preserved. Authenticated GET /media/:id downloads bytes, default 8 MiB and 24 hours; privacy restrictions retained. No new dependencies or required environment changes.
+
+## Complete API reference
+
+See [docs/api.md](docs/api.md) for the Markdown API reference, including native media, group management, webhooks and administration.

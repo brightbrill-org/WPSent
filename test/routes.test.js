@@ -316,3 +316,31 @@ test('group management docs and all six Postman requests are present',()=>{
   assert.equal(folder.item.length,6);
   for(const item of folder.item)if(item.request.body)assert.doesNotThrow(()=>JSON.parse(item.request.body.raw));
 });
+
+test('native media rejects invalid formats and mixed payload before dispatch',async()=>{
+  wa.sanitizePhone=x=>x.replace(/\D/g,'');
+  wa.sendNativeMedia=()=>assert.fail('invalid media must not dispatch');
+  for(const body of [{image:null},{video:{mimetype:'video/avi',data:'AAAA'}},{voiceNote:{mimetype:'audio/mpeg',data:'AAAA'}},{image:{},message:'hello'}]){
+    const res=lidResponse();
+    await sendHandler({query:{to:'919000000001'},body,wpUser:{phone:'owner-a'}},res);
+    assert.equal(res.statusCode,400);
+  }
+});
+test('native media documentation and all three Postman send requests are present',()=>{
+  assert.ok(docsHTML('https://example.test').includes('id="native-media"'));
+  const items=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name==='WhatsApp API').item;
+  for(const [name,kind] of [['Send native image','image'],['Send native video','video'],['Send voice note','voiceNote']]){
+    const request=items.find(x=>x.name===name).request;
+    assert.equal(request.url,'{{baseUrl}}/send');assert.ok(JSON.parse(request.body.raw)[kind]);
+  }
+});
+
+test('documentation sidebar links cover every main section exactly once and in content order',()=>{
+  const html=docsHTML('https://example.test');
+  const sidebar=html.split('<div class="sb">')[1].split('</div>')[0];
+  const doc=html.split('<div class="doc">')[1];
+  const links=Array.from(sidebar.matchAll(/href="#([^"]+)"/g),m=>m[1]);
+  const headings=Array.from(doc.matchAll(/<h[12]\s+id="([^"]+)"/g),m=>m[1]);
+  assert.equal(new Set(links).size,links.length);
+  assert.deepEqual(links,headings);
+});

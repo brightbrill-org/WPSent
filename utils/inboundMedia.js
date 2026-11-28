@@ -20,7 +20,8 @@ function filename(raw,id){
   return name&&name!=='.'&&name!=='..'?name:'media-'+id;
 }
 function mimetype(raw){
-  return typeof raw==='string'&&/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(raw)&&raw.length<=120?raw.toLowerCase():'application/octet-stream';
+  const base=typeof raw==='string'?raw.split(';')[0].trim():'';
+  return /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(base)&&base.length<=120?base.toLowerCase():'application/octet-stream';
 }
 function decodeMedia(data,maxBytes){
   if(typeof data!=='string'||!data.length||data.length%4!==0)return {status:'unavailable'};
@@ -50,7 +51,9 @@ function createInboundCapture({store,settings=mediaSettings(),now=Date.now}){
       const decoded=decodeMedia(media?.data,settings.maxBytes);
       if(!decoded.bytes)return {mediaStatus:decoded.status};
       const id=randomUUID(),expiresAt=new Date(now()+settings.retentionMs);
-      const row={_id:id,userId,filename:filename(media.filename,id),mimetype:mimetype(media.mimetype),size:decoded.bytes.length,expiresAt,data:decoded.bytes};
+      const mime=mimetype(media.mimetype);
+      const ext=({'image/jpeg':'.jpg','image/png':'.png','video/mp4':'.mp4','audio/ogg':'.ogg','audio/opus':'.opus','audio/mpeg':'.mp3','audio/mp4':'.m4a'})[mime]||'';
+      const row={_id:id,userId,filename:filename(media.filename,id+ext),mimetype:mime,size:decoded.bytes.length,expiresAt,data:decoded.bytes};
       await store(row);
       if(expired||!isAllowed())return {mediaStatus:'skipped'};
       return {mediaStatus:'available',mediaId:id,mediaFilename:row.filename,mediaMimetype:row.mimetype,mediaSize:row.size,mediaExpiresAt:expiresAt.toISOString(),mediaDownloadPath:'/media/'+id};

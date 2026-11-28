@@ -3,6 +3,7 @@ const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment 
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { createDirectoryReader } = require('./utils/directory');
 const { createMessageActions, messageIdOf } = require('./utils/messageActions');
+const {nativeOptions,confirmNativeMedia,inboundMediaIdentity}=require('./utils/nativeMedia');
 const {createGroupActions}=require('./utils/groupActions');
 const { createInboundCapture } = require('./utils/inboundMedia');
 const inboundMediaStore = require('./services/inboundMediaStore');
@@ -167,8 +168,9 @@ function extractBody(msg) {
   }
   if (msg.type === 'sticker')  return '[Sticker]';
   if (msg.type === 'image')    return msg.body || '[Image]';
-  if (msg.type === 'video')    return '[Video]';
-  if (msg.type === 'audio' || msg.type === 'ptt') return '[Audio]';
+  if (msg.type === 'video')    return msg.body || '[Video]';
+  if (msg.type === 'ptt') return '[Voice note]';
+  if (msg.type === 'audio') return '[Audio]';
   if (msg.type === 'document') return `[Document: ${msg.body || 'file'}]`;
   if (msg.type === 'location') return `[Location: ${msg.location?.latitude || '?'},${msg.location?.longitude || '?'}]`;
   if (msg.type === 'vcard' || msg.type === 'multi_vcard') return '[Contact card]';
@@ -434,7 +436,7 @@ function createSession(phone) {
       const media = await captureInboundMedia(msg, user._id, allowed);
       if (!allowed()) return;
       const messageId = messageIdOf(msg);
-      const identity = {chatId: msg.from, ...(messageId ? {messageId} : {})};
+      const identity = {chatId: msg.from, ...(messageId ? {messageId} : {}), ...inboundMediaIdentity(msg)};
       const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, ...identity, body, type, status: 'received', ...(media || {}) });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
@@ -535,6 +537,27 @@ function emitLog(userId, log) {
   (logListeners.get(userId) || []).forEach(fn => { try { fn(log); } catch (_) {} });
 }
 
+const nativeMediaBusy=new WeakSet();
+let nativeMediaActive=0;
+async function sendNativeMedia(phone,chatId,payload,media){
+  const session=sessions.get(phone);
+  const fail=(message,code)=>{throw Object.assign(new Error(message),{code});};
+  const check=()=>{if(shuttingDown||isPhoneBlocked(phone)||!session||sessions.get(phone)!==session||session.destroyed||session.initFailed||session.status!=='ready')fail('WhatsApp session not ready','WA_NOT_READY');};
+  check();
+  if(nativeMediaActive>=2||nativeMediaBusy.has(session))fail('Another media send is in progress','WA_NATIVE_MEDIA_BUSY');
+  nativeMediaBusy.add(session);nativeMediaActive++;
+  let expired=false;
+  const work=Promise.resolve().then(async()=>{
+    check();
+    if(expired)fail('Media send timed out','WA_NATIVE_MEDIA_TIMEOUT');
+    const sent=confirmNativeMedia(await session.client.sendMessage(chatId,payload,nativeOptions(media)),media);
+    const messageId=messageIdOf(sent);
+    if(!messageId)fail('WhatsApp did not confirm message identity','WA_NATIVE_MEDIA_FAILED');
+    return {messageId};
+  }).finally(()=>{nativeMediaActive--;nativeMediaBusy.delete(session);});
+  try{return await deadline(()=>work,90000,'WhatsApp native media send');}
+  catch(e){if(e.code==='WA_READY_TIMEOUT'){expired=true;fail('Media send timed out; verify recipient before retrying','WA_NATIVE_MEDIA_TIMEOUT');}throw e;}
+}
 async function sendMessage(phone, to, body, shareType) {
   if (isPhoneBlocked(phone)) throw new Error('Phone registration revoked');
   const session = sessions.get(phone);
@@ -606,6 +629,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, resolveLid, listDirectory, markSeen, replyMessage, groupAction, restoreAllSessions,
+  onQR, offQR, sendMessage, sendNativeMedia, resolveLid, listDirectory, markSeen, replyMessage, groupAction, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };
