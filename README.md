@@ -298,3 +298,7 @@ Invite retrieval compatibility: load the WhatsApp Web invite drawer bundle only 
 ### Native images, videos and voice notes
 
 Authenticated `POST /send` accepts exactly one of `image`, `video`, `voiceNote`: `{mimetype,data,filename?,caption?}`. JPEG/PNG, MP4 and Ogg Opus respectively. Captions only for image/video (1024 chars). Standard padded base64 or matching data URL; 10 MiB decoded cap and existing JSON limit. Header checks, no transcoding. Returns `ok,chatId,messageId,type,logId`. Native voice uses sendAudioAsVoice; outbound type voice_note. One outstanding send per account, two globally; 90-second deadline. No automatic retry. Inbound capture reused: image/video mediaKind and mediaCaption; audio/PTT mediaKind audio/voice_note and isVoiceNote flag. Legacy inbound audio type preserved. Authenticated GET /media/:id downloads bytes, default 8 MiB and 24 hours; privacy restrictions retained. No new dependencies or required environment changes.
+
+## Complete API reference
+
+See [docs/api.md](docs/api.md) for the Markdown API reference, including native media, group management, webhooks and administration.
