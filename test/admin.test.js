@@ -32,7 +32,12 @@ test('missing and malformed admin tokens are rejected without DB access', async 
 test('admin UI and downloadable documentation are present', () => {
   const html=adminHTML();
   assert.match(html,/Administrator sign-in/);
-  assert.match(html,/Registered phones/);
+  assert.match(html,/<h2>Registered sessions<\/h2>/);
+  assert.match(html,/id="view-sessions"/);
+  assert.match(html,/id="phones"/);
+  assert.match(html,/id="phoneSearch"/);
+  assert.match(html,/id="globalPolicyForm"/);
+  assert.match(html,/id="sessionPolicyForm"/);
   assert.match(html,/Create administrator account/);
   assert.match(docsHTML(),/\/docs\/postman.json/);
   assert.equal(collection.info.schema,'https://schema.getpostman.com/json/collection/v2.1.0/collection.json');
