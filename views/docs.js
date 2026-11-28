@@ -82,6 +82,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#self-host">Self-Hosting</a>
     <h3>Messaging APIs</h3>
     <a href="#send">Send Message</a>
+    <a href="#polls">Poll Management</a>
     <a href="#native-media">Images, Videos &amp; Voice Notes</a>
     <a href="#seen-reply">Mark as Seen &amp; Reply</a>
     <a href="#logs">Message Logs &amp; Media Download</a>
@@ -200,6 +201,14 @@ npm start              # visit http://localhost:3000</pre>
   }
 }</pre>
     <p>Both examples use POST <code>/send</code> with headers <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code>. Replace sample details with authorized values. Use one payload type per request when sending a contact or location. Invalid or mixed payloads return 400; send failures return 500 with a log ID. Verify delivery before retrying.</p>
+    <h2 id="polls">Poll Management</h2>
+    <p>POST /send supports nested poll or legacy question/options. Set allowMultipleAnswers to true for multiple choices. 2–12 unique options, max 100 characters each, question max 255. Response includes the WhatsApp messageId.</p>
+    <pre>{"to":"919000000001","poll":{"question":"Choose a product","options":["E360","HireHub"],"allowMultipleAnswers":true}}</pre>
+    <p>Incoming polls use message_received with type poll and structured poll metadata when available. Register poll_vote_updated for current selections, voter identity and withdrawn votes. POST webhooks recommended; structured values in GET webhooks are JSON strings. Best-effort delivery.</p>
+    <pre>GET /polls/:messageId/results
+POST /polls/:messageId/vote
+{"selectedOptions":["E360"]}</pre>
+    <p>Results reflect local WhatsApp Web data and include option counts and voters, not guaranteed complete history. Empty selections withdraw a vote. Vote response status submitted, confirmed false, because native dispatch has no confirmation. Ready required; one operation per session, four globally, 30-second deadline. 400 invalid, 404 unavailable poll, 502 incomplete or unconfirmed, 503 busy/not ready, 504 timeout. Verify state before retrying.</p>
     <h2 id="native-media">Send and receive images, videos and voice notes</h2>
     <p><span class="mt post">POST</span><code>/send</code> supports native media using exactly one of these JSON objects. Use existing API authentication headers.</p>
     <pre>{ "to": "919000000001", "image": {
@@ -354,7 +363,7 @@ GET /groups/123456789-123456789@g.us/invite</pre>
 x-client-id: YOUR_CID
 x-api-key: YOUR_KEY
 { "url": "https://yoursite.com/hook?key=abc", "method": "POST", "label": "My CRM", "event": "message_received" }</pre>
-    <p>Supported events: <code>message_received</code> (default) and <code>auth_rescan_required</code>. Unsupported values return HTTP 400.</p>
+    <p>Supported events: <code>message_received</code> (default) <code>auth_rescan_required</code> and <code>poll_vote_updated</code>. Unsupported values return HTTP 400.</p>
     <h3>Toggle / Delete</h3>
     <pre><span class="mt ptch">PATCH</span> /webhooks/:id  { "active": false }
 <span class="mt del">DELETE</span> /webhooks/:id</pre>

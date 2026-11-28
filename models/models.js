@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const webhookSchema = new mongoose.Schema({
   url:    { type: String, required: true },
   method: { type: String, enum: ['GET', 'POST'], default: 'POST' },
-  event:  { type: String, enum: ['message_received', 'auth_rescan_required'], default: 'message_received' },
+  event:  { type: String, enum: ['message_received', 'auth_rescan_required', 'poll_vote_updated'], default: 'message_received' },
   label:  { type: String, default: '' },
   active: { type: Boolean, default: true }
 });
@@ -40,6 +40,7 @@ const messageLogSchema = new mongoose.Schema({
   type:      { type: String, default: 'text' },
   status:    { type: String, default: 'sent' },
   error:     { type: String, default: null },
+  poll: { type: mongoose.Schema.Types.Mixed },
   mediaKind: { type: String },
   isVoiceNote: { type: Boolean },
   mediaCaption: { type: String },

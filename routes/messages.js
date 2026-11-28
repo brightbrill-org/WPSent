@@ -7,6 +7,7 @@ const wa = require('../waManager');
 const { parseShare, materializeShare } = require('../utils/sharePayload');
 const {parseSeen,parseReply,normalizeChatId}=require('../utils/messageActions');
 const {parseNativeMedia}=require('../utils/nativeMedia');
+const {parsePoll}=require('../utils/pollActions');
 
 function actionError(res,e){
   const status={INVALID_MESSAGE_ACTION:400,WA_NOT_READY:503,WA_ACTION_BUSY:503,WA_ACTION_NOT_FOUND:404,WA_ACTION_TIMEOUT:504,WA_ACTION_FAILED:502}[e.code];
@@ -22,14 +23,27 @@ module.exports = function registerMessages(router) {
 
     let payload, logBody, logType;
 
-    let native,share;
-    try { native=parseNativeMedia(req.body,req.query);share = parseShare(req.body, req.query); }
+    let native,share,poll;
+    try { native=parseNativeMedia(req.body,req.query);share = parseShare(req.body, req.query);poll=parsePoll(req.body,req.query); }
     catch (e) {
-      if (e.code === 'INVALID_SHARE_PAYLOAD'||e.code==='INVALID_NATIVE_MEDIA') return res.status(400).json({ error: e.message });
+      if (e.code === 'INVALID_SHARE_PAYLOAD'||e.code==='INVALID_NATIVE_MEDIA'||e.code==='INVALID_POLL') return res.status(400).json({ error: e.message });
       if (e.code === 'NATIVE_MEDIA_TOO_LARGE') return res.status(413).json({error:e.message});
       throw e;
     }
     const doc = req.body?.document;
+    if(poll){
+      let chatId;
+      try{chatId=normalizeChatId(rawTo);}catch(e){return res.status(400).json({error:e.message});}
+      const {Poll}=require('whatsapp-web.js');
+      let result;
+      try{result=await wa.pollActions.send(req.wpUser.phone,chatId,poll,new Poll(poll.question,poll.options,{allowMultipleAnswers:poll.allowMultipleAnswers}));}
+      catch(e){return res.status({WA_NOT_READY:503,WA_POLL_BUSY:503,WA_POLL_TIMEOUT:504,WA_POLL_FAILED:502}[e.code]||502).json({error:e.message});}
+      let log;
+      try{log=await MessageLog.create({userId:req.wpUser._id,direction:'outbound',to:chatId,chatId,messageId:result.messageId,type:'poll',body:poll.question,poll,status:'sent'});}
+      catch(e){return res.json({...result,logId:null,warning:'Poll sent; message log could not be saved'});}
+      try{await wa.pruneOldLogs(req.wpUser._id);wa.emitLog(req.wpUser._id.toString(),log.toObject());}catch(e){console.error('[WA] Poll log housekeeping failed');}
+      return res.json({...result,logId:log._id});
+    }
     if(native){
       let chatId;
       try{chatId=normalizeChatId(rawTo);}catch(e){return res.status(400).json({error:e.message});}
@@ -57,22 +71,11 @@ module.exports = function registerMessages(router) {
       logBody = `[Document: ${doc.filename}]${doc.caption ? ' ' + str(doc.caption) : ''}`;
       logType = 'document';
     } else {
-      const pollQuestion = str(req.body?.question || req.body?.poll?.question);
-      const pollOptions  = req.body?.options || req.body?.poll?.options;
-      if (pollQuestion && Array.isArray(pollOptions) && pollOptions.length >= 2) {
-        const { Poll } = require('whatsapp-web.js');
-        const options = pollOptions.map(o => str(o)).filter(Boolean);
-        if (options.length < 2) return res.status(400).json({ error: 'poll requires at least 2 non-empty options' });
-        payload = new Poll(pollQuestion, options);
-        logBody = `Poll: ${pollQuestion} (${options.join(', ')})`;
-        logType = 'poll';
-      } else {
         const message = str(req.body?.message || req.body?.body || req.query.message);
         if (!message) return res.status(400).json({ error: 'message is required (or provide contact / location / document / question + options for a poll)' });
         payload = message;
         logBody = message;
         logType = 'text';
-      }
     }
 
     let status = 'sent', error = null;

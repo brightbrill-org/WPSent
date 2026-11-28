@@ -23,5 +23,6 @@ registerContacts(router);
 registerAdmin(router);
 registerMedia(router);
 registerGroups(router);
+require('./polls')(router);
 
 module.exports = router;

@@ -408,7 +408,7 @@ function renderWebhooks() {
   var h = '<div class="card" style="margin-bottom:16px">' +
     '<div class="ct">Add Webhook</div>' +
     '<p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">Choose inbound messages or a separate alert when WhatsApp needs to be linked again. Works with query params like <code style="color:var(--green)">?key=abc</code> too.</p>' +
-    '<label>Event</label><select class="fi" id="wh-event"><option value="message_received">Inbound message</option><option value="auth_rescan_required">Authentication — rescan required</option></select>' +
+    '<label>Event</label><select class="fi" id="wh-event"><option value="message_received">Inbound message</option><option value="auth_rescan_required">Authentication — rescan required</option><option value="poll_vote_updated">Poll vote updated</option></select>' +
     '<label>URL</label><input class="fi" id="wh-url" type="url" placeholder="https://yoursite.com/webhook"/>' +
     '<div class="row" style="margin-bottom:12px">' +
       '<div style="flex:1"><label>Method</label><select class="fi" id="wh-m" style="margin-bottom:0"><option>POST</option><option>GET</option></select></div>' +
@@ -423,7 +423,7 @@ function renderWebhooks() {
   } else {
     HOOKS.forEach(function(w) {
       h += '<div class="wi">' +
-        '<div><div class="wu">'+esc(w.url)+'</div><div class="wm">'+esc(w.method)+' &middot; '+(w.event==='auth_rescan_required'?'Rescan required':'Inbound message')+' &middot; '+esc(w.label||'No label')+' &middot; '+(w.active?'Active':'Paused')+'</div></div>' +
+        '<div><div class="wu">'+esc(w.url)+'</div><div class="wm">'+esc(w.method)+' &middot; '+(w.event==='auth_rescan_required'?'Rescan required':w.event==='poll_vote_updated'?'Poll vote updated':'Inbound message')+' &middot; '+esc(w.label||'No label')+' &middot; '+(w.active?'Active':'Paused')+'</div></div>' +
         '<button class="btn btn-g btn-s" onclick="toggleWH(\''+w._id+'\','+(!w.active)+')">'+(w.active?'Pause':'Resume')+'</button>' +
         '<button class="btn btn-d btn-s" onclick="delWH(\''+w._id+'\')">Delete</button>' +
       '</div>';

@@ -67,7 +67,9 @@ const expected = [
   ['delete', '/groups/:groupId/participants', requireKey],
   ['patch', '/groups/:groupId/subject', requireKey],
   ['patch', '/groups/:groupId/description', requireKey],
-  ['get', '/groups/:groupId/invite', requireKey]
+  ['get', '/groups/:groupId/invite', requireKey],
+  ['get', '/polls/:messageId/results', requireKey],
+  ['post', '/polls/:messageId/vote', requireKey]
 ];
 
 test('all existing routes retain method, path, registration order and auth guard', () => {
@@ -343,4 +345,11 @@ test('documentation sidebar links cover every main section exactly once and in c
   const headings=Array.from(doc.matchAll(/<h[12]\s+id="([^"]+)"/g),m=>m[1]);
   assert.equal(new Set(links).size,links.length);
   assert.deepEqual(links,headings);
+});
+
+test('poll routes validate message ID and scope results to authenticated account',async()=>{
+  const handler=router.stack.find(x=>x.route?.path==='/polls/:messageId/results').route.stack[1].handle;
+  wa.pollActions={results:async(phone,id)=>{assert.equal(phone,'owner');return {ok:true,messageId:id};}};
+  const res=lidResponse();await handler({params:{messageId:'false_919000000001@c.us_EXAMPLE'},wpUser:{phone:'owner'}},res);assert.equal(res.body.ok,true);
+  const bad=lidResponse();await handler({params:{messageId:'bad'},wpUser:{phone:'owner'}},bad);assert.equal(bad.statusCode,400);
 });
