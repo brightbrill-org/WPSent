@@ -82,6 +82,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#self-host">Self-Hosting</a>
     <h3>API Reference</h3>
     <a href="#send">Send Message</a>
+    <a href="#native-media">Images, videos and voice notes</a>
     <a href="#seen-reply">Mark as seen &amp; reply</a>
     <a href="#logs">Message Logs</a>
     <a href="#status">Status</a>
@@ -197,6 +198,38 @@ npm start              # visit http://localhost:3000</pre>
   }
 }</pre>
     <p>Both examples use POST <code>/send</code> with headers <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code>. Replace sample details with authorized values. Use one payload type per request when sending a contact or location. Invalid or mixed payloads return 400; send failures return 500 with a log ID. Verify delivery before retrying.</p>
+    <h2 id="native-media">Send and receive images, videos and voice notes</h2>
+    <p><span class="mt post">POST</span><code>/send</code> supports native media using exactly one of these JSON objects. Use existing API authentication headers.</p>
+    <pre>{ "to": "919000000001", "image": {
+  "mimetype": "image/jpeg", "data": "BASE64_IMAGE",
+  "filename": "photo.jpg", "caption": "Product photo"
+}}</pre>
+    <pre>{ "to": "919000000001", "video": {
+  "mimetype": "video/mp4", "data": "BASE64_VIDEO",
+  "filename": "demo.mp4", "caption": "Product demonstration"
+}}</pre>
+    <pre>{ "to": "919000000001", "voiceNote": {
+  "mimetype": "audio/ogg", "data": "BASE64_OGG_OPUS",
+  "filename": "voice.ogg"
+}}</pre>
+    <p>Outgoing formats: JPEG/PNG, MP4 (WhatsApp-compatible codecs such as H.264/AAC), Ogg Opus. Standard padded base64 or matching data URL. Header checks are not full codec validation; no transcoding. Filename optional; image/video caption optional (1024 characters); no voice captions. Decoded limit 10 MiB, subject to the existing JSON request limit. Native inline media, not documents. Ready session required; one media send per account, two globally, 90-second deadline. No automatic retries.</p>
+    <pre>{ "ok": true, "chatId": "919000000001@c.us",
+  "messageId": "true_919000000001@c.us_EXAMPLE456",
+  "type": "voice_note", "logId": "64f3a1234567890123456789" }</pre>
+    <p>HTTP 400 invalid media, 413 size limit, 503 not ready/busy, 504 timeout, 502 unconfirmed send. Confirm actual delivery before retrying. Outbound voice notes return type voice_note; inbound PTT keeps legacy type audio with mediaKind voice_note and isVoiceNote true.</p>
+    <h3>Receive media and download</h3>
+    <pre>{
+  "event": "message_received",
+  "type": "audio", "mediaKind": "voice_note", "isVoiceNote": true,
+  "chatId": "919000000001@c.us",
+  "messageId": "false_919000000001@c.us_EXAMPLE123",
+  "mediaStatus": "available", "mediaMimetype": "audio/ogg",
+  "mediaFilename": "voice.ogg", "mediaSize": 32000,
+  "mediaId": "12345678-1234-4234-8234-123456789012",
+  "mediaDownloadPath": "/media/12345678-1234-4234-8234-123456789012"
+}</pre>
+    <p>Images/videos expose mediaKind image/video and mediaCaption; ordinary audio exposes mediaKind audio and isVoiceNote false. Existing authenticated GET /media/:id returns original bytes, default 8 MiB capture limit and 24-hour retention (configurable up to 10 MiB and 168 hours). Download before expiry; mediaStatus indicates availability. View-once and disappearing media are skipped. No media bytes in webhooks.</p>
+
     <h2 id="seen-reply">Mark as seen and quoted reply</h2>
     <p>Use existing <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code> headers. Both endpoints require the authenticated account's WhatsApp session to be ready.</p>
     <h3>Mark chat as seen</h3>

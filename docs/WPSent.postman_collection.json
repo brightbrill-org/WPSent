@@ -99,6 +99,21 @@
       "key": "participantPhone",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "imageBase64",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "videoBase64",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "voiceNoteBase64",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -423,6 +438,99 @@
               }
             },
             "description": "Sends a real quoted text reply to the original conversation. Set messageId from inbound webhook, not logId."
+          }
+        },
+        {
+          "name": "Send native image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"image\": {\n    \"mimetype\": \"image/jpeg\",\n    \"data\": \"{{imageBase64}}\",\n    \"filename\": \"photo.jpg\",\n    \"caption\": \"Example caption\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends real native media. Set base64 to actual image/jpeg bytes. Maximum 10 MiB decoded; no transcoding."
+          }
+        },
+        {
+          "name": "Send native video",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"video\": {\n    \"mimetype\": \"video/mp4\",\n    \"data\": \"{{videoBase64}}\",\n    \"filename\": \"demo.mp4\",\n    \"caption\": \"Example caption\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends real native media. Set base64 to actual video/mp4 bytes. Maximum 10 MiB decoded; no transcoding."
+          }
+        },
+        {
+          "name": "Send voice note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"voiceNote\": {\n    \"mimetype\": \"audio/ogg\",\n    \"data\": \"{{voiceNoteBase64}}\",\n    \"filename\": \"voice.ogg\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends real native media. Set base64 to actual audio/ogg bytes (Ogg Opus required). Maximum 10 MiB decoded; no transcoding."
           }
         },
         {
