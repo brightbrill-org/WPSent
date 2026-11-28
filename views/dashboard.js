@@ -1,4 +1,5 @@
 'use strict';
+const {EXAMPLES,buildExample}=require('../utils/dashboardExamples');
 
 function dashboardHTML(user) {
   return String.raw`<!DOCTYPE html>
@@ -454,24 +455,43 @@ async function toggleWH(id, active) {
   toast(active ? 'Resumed' : 'Paused');
 }
 
-function renderExamples() {
-  var curl = 'curl -X POST "https://wpsent.xyz/send?clientid='+CID+'&key=YOUR_KEY&to=8801711000000" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"message": "Hello!"}\'';
-  var node = 'const res = await fetch(\n  \'https://wpsent.xyz/send?clientid='+CID+'&key=YOUR_KEY&to=8801711000000\',\n  { method:\'POST\', headers:{\'Content-Type\':\'application/json\'},\n    body: JSON.stringify({ message: \'Hello!\' }) }\n);\nconsole.log(await res.json());';
-  var py   = 'import requests\nr = requests.post(\'https://wpsent.xyz/send\',\n    params={\'clientid\':\''+CID+'\',\'key\':\'YOUR_KEY\',\'to\':\'8801711000000\'},\n    json={\'message\': \'Hello!\'})\nprint(r.json())';
+var exampleIndex = 0, exampleLanguage = 'curl';
+var EXAMPLE_CATALOG = ${JSON.stringify(EXAMPLES).replace(/</g,"\\u003c")};
+var buildExample = ${buildExample.toString()};
 
-  document.getElementById('p-examples').innerHTML =
+function renderExamples() {
+  var panel=document.getElementById('p-examples');
+  panel.innerHTML =
     '<div class="card">' +
       '<div class="ct">Code Examples</div>' +
-      '<div class="lt">' +
-        '<div class="ltb on" id="lt-curl" onclick="sl(this,\'lp-curl\')">cURL</div>' +
-        '<div class="ltb" id="lt-node" onclick="sl(this,\'lp-node\')">Node.js</div>' +
-        '<div class="ltb" id="lt-py"   onclick="sl(this,\'lp-py\')">Python</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px">' +
+        '<div><label for="ex-operation">API operation</label><select class="fi" id="ex-operation"></select></div>' +
+        '<div><label for="ex-language">Language</label><select class="fi" id="ex-language"><option value="curl">cURL (Bash)</option><option value="node">Node.js</option><option value="py">Python</option></select></div>' +
       '</div>' +
-      '<div id="lp-curl"><div class="cb" id="cb-curl">'+esc(curl)+'<button class="cp" onclick="cpc(\'cb-curl\')">copy</button></div></div>' +
-      '<div id="lp-node" style="display:none"><div class="cb" id="cb-node">'+esc(node)+'<button class="cp" onclick="cpc(\'cb-node\')">copy</button></div></div>' +
-      '<div id="lp-py"   style="display:none"><div class="cb" id="cb-py">'+esc(py)+'<button class="cp" onclick="cpc(\'cb-py\')">copy</button></div></div>' +
-      '<p style="font-size:12px;color:var(--muted);margin-top:14px"><a href="/docs" style="color:var(--green);text-decoration:none">Full API docs &rarr;</a></p>' +
+      '<div class="cl">Base URL</div><div class="cv" id="ex-origin" style="cursor:default;margin-bottom:12px"></div>' +
+      '<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px"><span class="mono" id="ex-endpoint"></span><button type="button" class="btn btn-g btn-s" id="ex-copy">Copy code</button></div>' +
+      '<pre class="cb" id="ex-code" style="overflow-x:auto;word-break:normal;white-space:pre"></pre>' +
+      '<p style="font-size:12px;color:var(--muted);line-height:1.6">Replace YOUR_CLIENT_ID, YOUR_API_KEY and other YOUR_ placeholders before running. Examples are not executed from this page. Media requires actual Base64 data. Group, vote and webhook mutations affect the linked account; use authorized test data.</p>' +
+      '<p style="font-size:12px;margin-top:14px"><a href="/docs" style="color:var(--green)">Full API docs &rarr;</a> &nbsp; <a href="/docs/postman.json" download style="color:var(--green)">Download Postman collection</a></p>' +
     '</div>';
+  var select=document.getElementById('ex-operation'), lastGroup=null, optgroup;
+  EXAMPLE_CATALOG.forEach(function(example,index){
+    if(example.group!==lastGroup){optgroup=document.createElement('optgroup');optgroup.label=example.group;select.appendChild(optgroup);lastGroup=example.group;}
+    var option=document.createElement('option');option.value=String(index);option.textContent=example.name;optgroup.appendChild(option);
+  });
+  select.value=String(exampleIndex);
+  var lang=document.getElementById('ex-language');lang.value=exampleLanguage;
+  select.addEventListener('change',function(){exampleIndex=Number(select.value);updateExample();});
+  lang.addEventListener('change',function(){exampleLanguage=lang.value;updateExample();});
+  document.getElementById('ex-copy').addEventListener('click',function(){cp(document.getElementById('ex-code').textContent,'Code');});
+  updateExample();
+}
+function updateExample(){
+  var example=EXAMPLE_CATALOG[exampleIndex];
+  var origin=window.location.origin;
+  document.getElementById('ex-origin').textContent=origin;
+  document.getElementById('ex-endpoint').textContent=example.method+' '+example.path;
+  document.getElementById('ex-code').textContent=buildExample(example,origin,exampleLanguage);
 }
 
 function sw(name) {
