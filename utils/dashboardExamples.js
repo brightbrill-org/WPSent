@@ -320,7 +320,120 @@ const EXAMPLES=[
       "label": "Poll votes",
       "event": "poll_vote_updated"
     }
+  },
+{
+  "name": "Get sending settings",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/sending/settings"
+},
+{
+  "name": "List broadcasts",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts"
+},
+{
+  "name": "Create broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts",
+  "body": {
+    "name": "Customer updates",
+    "recipients": [
+      {
+        "phone": "{{recipient}}",
+        "consent": true,
+        "consentSource": "Recorded customer opt-in"
+      }
+    ]
   }
+},
+{
+  "name": "Broadcast job history",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts/jobs"
+},
+{
+  "name": "Get broadcast job",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts/jobs/{{jobId}}"
+},
+{
+  "name": "Cancel broadcast job",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/jobs/{{jobId}}/cancel"
+},
+{
+  "name": "Record broadcast opt-out",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/opt-out",
+  "body": {
+    "phone": "{{recipient}}"
+  }
+},
+{
+  "name": "Get broadcast list",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts/{{broadcastId}}"
+},
+{
+  "name": "Rename broadcast list",
+  "group": "Broadcasts and sending",
+  "method": "PATCH",
+  "path": "/broadcasts/{{broadcastId}}",
+  "body": {
+    "name": "Updated customer list"
+  }
+},
+{
+  "name": "Delete broadcast list",
+  "group": "Broadcasts and sending",
+  "method": "DELETE",
+  "path": "/broadcasts/{{broadcastId}}"
+},
+{
+  "name": "Add broadcast recipients",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/recipients",
+  "body": {
+    "recipients": [
+      {
+        "phone": "{{recipient}}",
+        "consent": true,
+        "consentSource": "Recorded customer opt-in"
+      }
+    ]
+  }
+},
+{
+  "name": "Remove broadcast recipients",
+  "group": "Broadcasts and sending",
+  "method": "DELETE",
+  "path": "/broadcasts/{{broadcastId}}/recipients",
+  "body": {
+    "phones": [
+      "{{recipient}}"
+    ]
+  }
+},
+{
+  "name": "Send text broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "message": "Your requested service update is available.",
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+}
 ];
 
 // Serialized into browser script; origin comes from window.location.origin.

@@ -318,3 +318,41 @@ POST /polls/:messageId/vote with {"selectedOptions":["E360"]} submits the linked
 ### Dashboard API examples
 
 The authenticated dashboard Examples tab offers selectable public API operations and cURL (Bash), Node.js 18+ and Python (requests) snippets. The base URL is derived from `window.location.origin`, including custom ports and HTTP/HTTPS. Credentials and request-specific data remain placeholders. Copy code does not execute an API request. Download examples save the binary response. Admin-only operations are not included.
+
+
+## Broadcast lists and outbound pacing
+
+WPSent-managed lists are separate from native WhatsApp broadcast lists. Text-only, consented notifications; no group recipients, no scraping or automatic retries. Record explicit consent for each recipient (phone, consent:true, consentSource) and confirm at send time. Record opt-outs using POST /broadcasts/opt-out; account-wide suppression is permanent via this API and removes the number from all lists. Opt-outs, list membership and account state are checked again immediately before dispatch. Maximum 20 lists/account, 25 recipients/list or job, 100 reserved recipient slots per rolling 24 hours, one job per account and two globally. These are resource/consent safeguards, not WhatsApp-approved sending limits. Use official WhatsApp Business tools for large-scale messaging.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/sending/settings` | Get sending settings |
+| GET | `/broadcasts` | List broadcasts |
+| POST | `/broadcasts` | Create broadcast |
+| GET | `/broadcasts/jobs` | Broadcast job history |
+| GET | `/broadcasts/jobs/:jobId` | Get broadcast job |
+| POST | `/broadcasts/jobs/:jobId/cancel` | Cancel broadcast job |
+| POST | `/broadcasts/opt-out` | Record broadcast opt-out |
+| GET | `/broadcasts/:broadcastId` | Get broadcast list |
+| PATCH | `/broadcasts/:broadcastId` | Rename broadcast list |
+| DELETE | `/broadcasts/:broadcastId` | Delete broadcast list |
+| POST | `/broadcasts/:broadcastId/recipients` | Add broadcast recipients |
+| DELETE | `/broadcasts/:broadcastId/recipients` | Remove broadcast recipients |
+| POST | `/broadcasts/:broadcastId/send` | Send text broadcast |
+
+Create: `POST /broadcasts`, body `{"name":"Service updates","recipients":[{"phone":"919000000001","consent":true,"consentSource":"Customer opt-in record 123"}]}`. PATCH supports name and/or replacement recipients; add accepts recipients array, remove accepts phones array. International numbers with country code only. DELETE removes list, not job history.
+
+Send: `POST /broadcasts/:id/send`, body `{"message":"Your requested update is ready.","requestId":"unique-request-123","confirmConsent":true}`. HTTP 202 returns job ID and initial recipient states. Repeat the same requestId for the same list/message to retrieve existing job, not resubmit. Job history retained 30 days. GET /broadcasts/jobs/:jobId returns pending/sending/submitted/not_sent/unknown. Submitted means native message ID returned, NOT delivered/read. On error stop remaining recipients; an uncertain send is unknown, never retried automatically. Cancellation stops remaining sends, cannot recall a dispatched message. Restart marks active jobs interrupted (in-flight unknown, pending not_sent), never replays. Jobs run in the server process, no external worker required. All operations require API headers and are account scoped.
+
+### Outbound pacing (server-wide)
+
+| Environment variable | Default | Range |
+|---|---:|---|
+| WA_SEND_INTERVAL_MS | 1000 | 0–5000 ms |
+| WA_SEND_QUEUE_MAX | 4 | 1–8 pending sends |
+| WA_SEND_QUEUE_WAIT_MS | 5000 | 1000–10000 ms |
+| WA_BROADCAST_INTERVAL_MS | 3000 | 3000–60000 ms |
+
+One native client.sendMessage operation at a time across all linked accounts, with a fixed gap AFTER completion. Applies to text, documents, contact/location, native media, poll creation and quoted replies. Not inbound traffic, reads, group management, vote mutations or browser/background traffic. It smooths application dispatch, not a bandwidth guarantee or a way to bypass WhatsApp restrictions. A full/expired queue returns 503 where exposed; no dispatch occurred for that queued request. Existing action timeouts can still leave a dispatched send uncertain. Set environment variables and restart PM2 to change policy; GET /sending/settings shows effective values and current queue status. Zero interval retains serialization. Single PM2 fork only.
+
+Dashboard Broadcasts tab supports list creation/edit/delete, pasted numbers, explicit consent confirmation, text job submission, latest job status/cancel and opt-out. Direct contact selection and full CSV parsing, media broadcasts, durable replay and delivery receipts are not included.

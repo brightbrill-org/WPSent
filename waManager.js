@@ -1,4 +1,6 @@
 const { Client } = require('whatsapp-web.js');
+const {config:outboundConfig,createPacer}=require('./utils/outboundPacer');
+const outboundPacer=createPacer(outboundConfig());
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { createDirectoryReader } = require('./utils/directory');
@@ -336,6 +338,14 @@ function createSession(phone) {
 
   const session = { client, auth, status: 'initializing', qr: null, needsPair: false, destroyed: false, reconnecting: false, authenticated: false, qrTimer: null };
   sessions.set(phone, session);
+  // Route every native send (text, media, polls, quoted replies) through
+  // one bounded outbound scheduler. Do not pace inbound events or reads.
+  const nativeSend=client.sendMessage.bind(client);
+  client.sendMessage=(chatId,body,options,preflight)=>outboundPacer.submit(async()=>{
+    const check=()=>{if(shuttingDown||isPhoneBlocked(phone)||sessions.get(phone)!==session||session.destroyed||session.initFailed||session.status!=='ready')throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});};
+    check();if(preflight)await preflight();check();
+    return nativeSend(chatId,body,options);
+  });
   session.watchdog = createWatchdog({ timeoutMs: READY_TIMEOUT_MS, onTimeout: () => {
     failInitialization(phone, session, new Error('Authenticated but Ready not received within ' + READY_TIMEOUT_MS + 'ms'));
   }});
@@ -601,8 +611,18 @@ async function sendMessage(phone, to, body, shareType) {
   }
 }
 
+async function sendBroadcastText(phone,to,message,preflight){
+  const session=sessions.get(phone);
+  if(!session||session.status!=='ready'||shuttingDown||isPhoneBlocked(phone))throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});
+  const sent=await session.client.sendMessage(to+'@c.us',message,{waitUntilMsgSent:true,parseVCards:false,sendSeen:false},preflight);
+  const messageId=messageIdOf(sent);
+  if(!messageId||sent.type!=='chat')throw new Error('Broadcast submission unconfirmed');
+  return {messageId};
+}
+function outboundSettings(){return {...outboundPacer.state(),broadcastIntervalMs:Math.max(3000,Math.min(60000,Number(process.env.WA_BROADCAST_INTERVAL_MS)||3000)),broadcastMaxRecipients:25,broadcastDailyRecipients:100};}
 async function shutdown() {
   shuttingDown = true;
+  outboundPacer.close();
   for (const t of restoreTimers) clearTimeout(t);
   restoreTimers.clear();
   for (const t of reconnectTimers.values()) clearTimeout(t);
@@ -646,6 +666,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, sendNativeMedia, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
+  onQR, offQR, sendMessage, sendNativeMedia, sendBroadcastText, outboundSettings, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

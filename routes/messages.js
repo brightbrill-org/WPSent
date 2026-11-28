@@ -10,7 +10,7 @@ const {parseNativeMedia}=require('../utils/nativeMedia');
 const {parsePoll}=require('../utils/pollActions');
 
 function actionError(res,e){
-  const status={INVALID_MESSAGE_ACTION:400,WA_NOT_READY:503,WA_ACTION_BUSY:503,WA_ACTION_NOT_FOUND:404,WA_ACTION_TIMEOUT:504,WA_ACTION_FAILED:502}[e.code];
+  const status={INVALID_MESSAGE_ACTION:400,WA_NOT_READY:503,WA_ACTION_BUSY:503,WA_ACTION_NOT_FOUND:404,WA_ACTION_TIMEOUT:504,WA_ACTION_FAILED:502,WA_SEND_BUSY:503,WA_SEND_QUEUE_TIMEOUT:503,WA_SEND_STOPPED:503}[e.code];
   if(status)return res.status(status).json({error:e.message});
   throw e;
 }
@@ -37,7 +37,7 @@ module.exports = function registerMessages(router) {
       const {Poll}=require('whatsapp-web.js');
       let result;
       try{result=await wa.pollActions.send(req.wpUser.phone,chatId,poll,new Poll(poll.question,poll.options,{allowMultipleAnswers:poll.allowMultipleAnswers}));}
-      catch(e){return res.status({WA_NOT_READY:503,WA_POLL_BUSY:503,WA_POLL_TIMEOUT:504,WA_POLL_FAILED:502}[e.code]||502).json({error:e.message});}
+      catch(e){return res.status({WA_NOT_READY:503,WA_POLL_BUSY:503,WA_POLL_TIMEOUT:504,WA_POLL_FAILED:502,WA_SEND_BUSY:503,WA_SEND_QUEUE_TIMEOUT:503,WA_SEND_STOPPED:503}[e.code]||502).json({error:e.message});}
       let log;
       try{log=await MessageLog.create({userId:req.wpUser._id,direction:'outbound',to:chatId,chatId,messageId:result.messageId,type:'poll',body:poll.question,poll,status:'sent'});}
       catch(e){return res.json({...result,logId:null,warning:'Poll sent; message log could not be saved'});}
@@ -51,7 +51,7 @@ module.exports = function registerMessages(router) {
       payload=new MessageMedia(native.mimetype,native.data,native.filename,native.size);
       let sent;
       try{sent=await wa.sendNativeMedia(req.wpUser.phone,chatId,payload,native);}
-      catch(e){const status={WA_NOT_READY:503,WA_NATIVE_MEDIA_BUSY:503,WA_NATIVE_MEDIA_TIMEOUT:504,WA_NATIVE_MEDIA_FAILED:502}[e.code]||502;return res.status(status).json({error:status===502?'Native media send not confirmed; verify recipient before retrying':e.message});}
+      catch(e){const status={WA_NOT_READY:503,WA_NATIVE_MEDIA_BUSY:503,WA_NATIVE_MEDIA_TIMEOUT:504,WA_NATIVE_MEDIA_FAILED:502,WA_SEND_BUSY:503,WA_SEND_QUEUE_TIMEOUT:503,WA_SEND_STOPPED:503}[e.code]||502;return res.status(status).json({error:status===502?'Native media send not confirmed; verify recipient before retrying':e.message});}
       const result={ok:true,chatId,messageId:sent.messageId,type:native.type};
       let log;
       try{log=await MessageLog.create({userId:req.wpUser._id,direction:'outbound',to:chatId,chatId,messageId:sent.messageId,body:native.logBody,type:native.type,status:'sent',mediaKind:native.type,isVoiceNote:native.kind==='voiceNote',mediaCaption:native.caption,mediaMimetype:native.mimetype,mediaFilename:native.filename,mediaSize:native.size});}
@@ -80,7 +80,7 @@ module.exports = function registerMessages(router) {
 
     let status = 'sent', error = null;
     try { await wa.sendMessage(req.wpUser.phone, to, payload, share?.type); }
-    catch (e) { status = 'failed'; error = e.message; }
+    catch (e) { if(['WA_SEND_BUSY','WA_SEND_QUEUE_TIMEOUT','WA_SEND_STOPPED'].includes(e.code))return res.status(503).json({error:e.message});status = 'failed'; error = e.message; }
 
     const log = await MessageLog.create({ userId: req.wpUser._id, direction: 'outbound', to, body: logBody, type: logType, status, error });
     await wa.pruneOldLogs(req.wpUser._id);

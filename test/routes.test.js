@@ -69,7 +69,20 @@ const expected = [
   ['patch', '/groups/:groupId/description', requireKey],
   ['get', '/groups/:groupId/invite', requireKey],
   ['get', '/polls/:messageId/results', requireKey],
-  ['post', '/polls/:messageId/vote', requireKey]
+  ['post', '/polls/:messageId/vote', requireKey],
+  ['get', '/sending/settings', requireKey],
+  ['get', '/broadcasts', requireKey],
+  ['post', '/broadcasts', requireKey],
+  ['get', '/broadcasts/jobs', requireKey],
+  ['get', '/broadcasts/jobs/:jobId', requireKey],
+  ['post', '/broadcasts/jobs/:jobId/cancel', requireKey],
+  ['post', '/broadcasts/opt-out', requireKey],
+  ['get', '/broadcasts/:id', requireKey],
+  ['patch', '/broadcasts/:id', requireKey],
+  ['delete', '/broadcasts/:id', requireKey],
+  ['post', '/broadcasts/:id/recipients', requireKey],
+  ['delete', '/broadcasts/:id/recipients', requireKey],
+  ['post', '/broadcasts/:id/send', requireKey]
 ];
 
 test('all existing routes retain method, path, registration order and auth guard', () => {

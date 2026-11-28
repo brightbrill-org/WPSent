@@ -21,6 +21,7 @@ const mongoose     = require('mongoose');
 const cookieParser = require('cookie-parser');
 const wa           = require('./waManager');
 const routes       = require('./routes/index.js');
+const broadcasts = require('./services/broadcasts');
 const { withControlLock } = require('./services/controlLock');
 const { requireKey } = require('./routes/authMiddleware');
 const { registerRequestBodyParsers } = require('./services/requestBody');
@@ -49,6 +50,7 @@ async function start() {
     await mongoose.connect(MONGO_URI, { dbName: 'wpsent' });
     console.log('MongoDB connected');
 
+    await broadcasts.initialize();
     const secret = await getCookieSecret();
     app.set('trust proxy', 1);
     app.disable('x-powered-by');
@@ -77,6 +79,7 @@ async function start() {
 async function onSignal(sig) {
   if (closing) return;
   closing = true;
+  broadcasts.stop();
   console.log(`${sig} received — saving WhatsApp sessions before exit...`);
   if (httpServer) httpServer.close();
   let exitCode = 0;

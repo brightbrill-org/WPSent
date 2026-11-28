@@ -154,11 +154,13 @@ textarea.fi{resize:vertical;min-height:80px;}
     <div class="tab on"  id="t-logs"       onclick="sw('logs')">Logs</div>
     <div class="tab"     id="t-playground" onclick="sw('playground')">Playground</div>
     <div class="tab"     id="t-webhooks"   onclick="sw('webhooks')">Webhooks</div>
+    <div class="tab" id="t-broadcasts" onclick="sw('broadcasts')">Broadcasts</div>
     <div class="tab"     id="t-examples"   onclick="sw('examples')">Examples</div>
   </div>
   <div class="panel on" id="p-logs"><div class="loading">Loading...</div></div>
   <div class="panel"    id="p-playground"></div>
   <div class="panel"    id="p-webhooks"></div>
+  <div class="panel" id="p-broadcasts"></div>
   <div class="panel"    id="p-examples"></div>
 </main>
 <div class="toast" id="toast"></div>
@@ -281,6 +283,7 @@ function renderAll() {
   renderPlayground();
   renderWebhooks();
   renderExamples();
+  renderBroadcasts();
 }
 
 function renderStats() {
@@ -494,8 +497,68 @@ function updateExample(){
   document.getElementById('ex-code').textContent=buildExample(example,origin,exampleLanguage);
 }
 
+var broadcastLists=[],broadcastSelected='',broadcastJob='';
+async function broadcastAPI(path,method,body){
+  var r=await fetch(path,{method:method||'GET',headers:{'x-client-id':CID,'x-api-key':KEY,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+  var d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d;
+}
+function renderBroadcasts(){
+  var panel=document.getElementById('p-broadcasts');
+  panel.innerHTML='<div class="card"><div class="ct">Broadcast lists — consented text notifications</div>'+
+    '<p style="font-size:12px;color:var(--muted);margin-bottom:12px">WPSent lists are not native WhatsApp lists. Add only recipients with recorded consent; maximum 25 per list. No automatic retry.</p>'+
+    '<label for="bc-list">Saved list</label><select id="bc-list" class="fi"></select>'+
+    '<div class="row" style="margin:10px 0"><button class="btn btn-g" id="bc-refresh">Refresh</button><button class="btn btn-g" id="bc-new">New list</button><button class="btn btn-d" id="bc-delete">Delete list</button></div>'+
+    '<label for="bc-name">List name</label><input id="bc-name" class="fi" maxlength="100"/>'+
+    '<label for="bc-phones">International numbers, separated by commas or new lines</label><textarea id="bc-phones" class="fi" rows="4"></textarea>'+
+    '<label for="bc-source">Consent record reference (for every listed recipient)</label><input id="bc-source" class="fi" maxlength="200"/>'+
+    '<label style="display:block;margin:10px 0"><input type="checkbox" id="bc-consent"/> I have recorded consent from every recipient.</label>'+
+    '<button class="btn btn-g" id="bc-save">Save list</button>'+
+    '<hr style="border:0;border-top:1px solid var(--border);margin:16px 0"/>'+
+    '<label for="bc-msg">Text message</label><textarea id="bc-msg" class="fi" rows="4" maxlength="4000"></textarea>'+
+    '<label style="display:block;margin:10px 0"><input type="checkbox" id="bc-confirm"/> Confirm recipients still consent to this message.</label>'+
+    '<div class="row"><button class="btn" id="bc-send">Submit broadcast</button><button class="btn btn-g" id="bc-job">Refresh job</button><button class="btn btn-d" id="bc-cancel">Cancel remaining sends</button></div>'+
+    '<label for="bc-optout" style="display:block;margin-top:14px">Record account-wide broadcast opt-out</label><input class="fi" id="bc-optout" placeholder="International phone number"/><button class="btn btn-g" id="bc-opt">Record opt-out</button>'+
+    '<pre class="pr" id="bc-result"></pre></div>';
+  var el=id=>document.getElementById(id);
+  var run=fn=>async()=>{try{await fn();}catch(e){el('bc-result').textContent=e.message;}};
+  async function refresh(){
+    var data=await broadcastAPI('/broadcasts');broadcastLists=data.items;
+    var select=el('bc-list');select.textContent='';
+    var empty=document.createElement('option');empty.value='';empty.textContent='Select or create a list';select.appendChild(empty);
+    broadcastLists.forEach(function(x){var o=document.createElement('option');o.value=x._id;o.textContent=x.name+' ('+x.recipients.length+')';select.appendChild(o);});
+    select.value=broadcastSelected;loadSelected();
+  }
+  function loadSelected(){
+    broadcastSelected=el('bc-list').value;
+    var row=broadcastLists.find(x=>x._id===broadcastSelected);
+    el('bc-name').value=row?row.name:'';el('bc-phones').value=row?row.recipients.map(x=>x.phone).join('\n'):'';
+    el('bc-source').value='';el('bc-consent').checked=false;
+  }
+  el('bc-list').onchange=loadSelected;el('bc-refresh').onclick=run(refresh);
+  el('bc-new').onclick=()=>{el('bc-list').value='';loadSelected();};
+  el('bc-save').onclick=run(async()=>{
+    if(!el('bc-consent').checked)throw new Error('Confirm recorded consent first');
+    var recipients=el('bc-phones').value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean).map(phone=>({phone,consent:true,consentSource:el('bc-source').value}));
+    var row=await broadcastAPI('/broadcasts'+(broadcastSelected?'/'+broadcastSelected:''),broadcastSelected?'PATCH':'POST',{name:el('bc-name').value,recipients});
+    broadcastSelected=row._id;await refresh();el('bc-result').textContent='List saved';
+  });
+  el('bc-delete').onclick=run(async()=>{if(!broadcastSelected||!window.confirm('Delete selected broadcast list?'))return;await broadcastAPI('/broadcasts/'+broadcastSelected,'DELETE');broadcastSelected='';await refresh();});
+  var requestId=null,lastPayload=null;
+  el('bc-send').onclick=run(async()=>{
+    if(!broadcastSelected||!el('bc-confirm').checked)throw new Error('Select a list and confirm consent');
+    var message=el('bc-msg').value, key=JSON.stringify([broadcastSelected,message]);
+    if(key!==lastPayload||!requestId){requestId=globalThis.crypto?.randomUUID?.()||('request-'+Date.now()+'-'+Math.random().toString(36).slice(2));lastPayload=key;}
+    el('bc-send').disabled=true;
+    try{var d=await broadcastAPI('/broadcasts/'+broadcastSelected+'/send','POST',{message,requestId,confirmConsent:true});broadcastJob=d._id;el('bc-result').textContent=JSON.stringify(d,null,2);el('bc-confirm').checked=false;requestId=null;}
+    finally{el('bc-send').disabled=false;}
+  });
+  el('bc-job').onclick=run(async()=>{if(!broadcastJob){var h=await broadcastAPI('/broadcasts/jobs');broadcastJob=h.items[0]?._id||'';}if(!broadcastJob)throw new Error('No jobs');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob),null,2);});
+  el('bc-cancel').onclick=run(async()=>{if(!broadcastJob)throw new Error('No selected job');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob+'/cancel','POST'),null,2);});
+  el('bc-opt').onclick=run(async()=>{var d=await broadcastAPI('/broadcasts/opt-out','POST',{phone:el('bc-optout').value});await refresh();el('bc-result').textContent=JSON.stringify(d,null,2);});
+  run(refresh)();
+}
 function sw(name) {
-  ['logs','playground','webhooks','examples'].forEach(function(n) {
+  ['logs','playground','webhooks','examples','broadcasts'].forEach(function(n) {
     document.getElementById('t-'+n).classList.toggle('on', n===name);
     document.getElementById('p-'+n).classList.toggle('on', n===name);
   });

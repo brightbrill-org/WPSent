@@ -24,5 +24,6 @@ registerAdmin(router);
 registerMedia(router);
 registerGroups(router);
 require('./polls')(router);
+require('./broadcasts')(router);
 
 module.exports = router;
