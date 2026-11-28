@@ -9,7 +9,8 @@ const db=name=>mongoose.connection.db.collection('wpsent_'+name);
 const lists=()=>db('broadcast_lists'),jobs=()=>db('broadcast_jobs'),optouts=()=>db('broadcast_optouts');
 const active=new Map();
 let stopping=false;
-const delay=Math.max(3000,Math.min(60000,Number(process.env.WA_BROADCAST_INTERVAL_MS)||3000));
+const policy=require('./sendingPolicy');
+const effective=user=>policy.session(user.phone).effective;
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const owner=user=>String(user._id);
 const scope=(user,id)=>({owner:owner(user),_id:v.uuid(id)});
@@ -31,18 +32,18 @@ async function checkOptouts(user,rows){if(rows.length&&await optouts().findOne({
 async function edit(user,id,action,body){return withControlLock(async()=>{
   if(stopping)fail(503,'Broadcast service stopping');
   if(action==='create'){
-    if(await lists().countDocuments({owner:owner(user)})>=20)fail(409,'Maximum 20 lists per account');
-    const recipients=v.recipients(body?.recipients||[]);await checkOptouts(user,recipients);
+    if(await lists().countDocuments({owner:owner(user)})>=effective(user).maxLists)fail(409,'Broadcast list limit reached');
+    const recipients=v.recipients(body?.recipients||[],effective(user).maxRecipients);await checkOptouts(user,recipients);
     const row={_id:randomUUID(),owner:owner(user),name:v.name(body?.name),recipients,createdAt:date(),updatedAt:date()};
     await lists().insertOne(row);return row;
   }
   const row=await getList(user,id);
   if(action==='delete'){await lists().deleteOne(scope(user,id));return {ok:true};}
   let recipients=row.recipients,name=row.name;
-  if(action==='patch'){if(body?.name!==undefined)name=v.name(body.name);if(body?.recipients!==undefined)recipients=v.recipients(body.recipients);}
-  if(action==='add'){const added=v.recipients(body?.recipients);if(!added.length)fail(400,'No recipients');const map=new Map(recipients.map(x=>[x.phone,x]));for(const x of added)map.set(x.phone,x);recipients=[...map.values()];}
+  if(action==='patch'){if(body?.name!==undefined)name=v.name(body.name);if(body?.recipients!==undefined)recipients=v.recipients(body.recipients,effective(user).maxRecipients);}
+  if(action==='add'){const added=v.recipients(body?.recipients,effective(user).maxRecipients);if(!added.length)fail(400,'No recipients');const map=new Map(recipients.map(x=>[x.phone,x]));for(const x of added)map.set(x.phone,x);recipients=[...map.values()];}
   if(action==='remove'){const removed=v.ids(body?.phones);recipients=recipients.filter(x=>!removed.includes(x.phone));}
-  if(recipients.length>25)fail(400,'Maximum 25 recipients per list');
+  if(action!=='remove'&&recipients.length>effective(user).maxRecipients)fail(400,'Broadcast recipient limit reached');
   // Removing recipients must remain possible even if another member opted out.
   if(action!=='remove'&&(action==='add'||body?.recipients!==undefined))await checkOptouts(user,recipients);
   const updatedAt=date();await lists().updateOne(scope(user,id),{$set:{name,recipients,updatedAt}});return {...row,name,recipients,updatedAt};
@@ -66,6 +67,7 @@ async function allowed(user,row,phone){
   if(!fresh)return false;
   const current=await jobs().findOne({_id:row._id,owner:owner(user),cancelRequested:{$ne:true},status:'running'},{projection:{_id:1}});
   if(!current)return false;
+  if(row.results.length>effective(user).maxRecipients||row.results.length>effective(user).dailyRecipients)return false;
   if(await optouts().findOne({owner:owner(user),phone}))return false;
   const list=await lists().findOne({_id:row.listId,owner:owner(user),'recipients.phone':phone},{projection:{_id:1}});
   return !!list&&!stopping&&!wa.isPhoneBlocked(user.phone);
@@ -76,7 +78,7 @@ async function run(user,row,message){
     await jobs().updateOne({_id:row._id},{$set:{status:'running',startedAt:date()}});
     for(let i=0;i<row.results.length;i++){
       const phone=row.results[i].phone;
-      if(i)await new Promise(resolve=>setTimeout(resolve,delay));
+      if(i){const started=Date.now();while(!stopping&&Date.now()-started<effective(user).broadcastIntervalMs)await new Promise(resolve=>setTimeout(resolve,Math.min(1000,Math.max(1,effective(user).broadcastIntervalMs-(Date.now()-started)))));}
       if(!await allowed(user,row,phone)){final='stopped';break;}
       await record(row._id,i,'sending');
       let sent;
@@ -104,13 +106,14 @@ async function start(user,id,body){
     const previous=await jobs().findOne({owner:owner(user),requestId:request.requestId});
     if(previous){if(previous.listId!==id||previous.messageHash!==hash)fail(409,'requestId already used for a different broadcast');return publicJob(previous);}
     if(stopping||wa.isPhoneBlocked(user.phone)||wa.getStatus(user.phone)!=='ready')fail(503,'WhatsApp session not ready');
-    if(active.has(owner(user))||active.size>=2)fail(409,'Another broadcast is running');
+    if(active.has(owner(user))||active.size>=policy.global().activeJobs)fail(409,'Another broadcast is running');
     const row=await getList(user,id);if(!row.recipients.length)fail(400,'Broadcast list is empty');
+    if(row.recipients.length>effective(user).maxRecipients)fail(409,'List exceeds current recipient policy');
     await checkOptouts(user,row.recipients);
     const since=new Date(Date.now()-86400000);
     const usage=await jobs().aggregate([{$match:{owner:owner(user),createdAt:{$gte:since}}},{$group:{_id:null,total:{$sum:{$size:'$results'}}}}]).toArray();
-    if((usage[0]?.total||0)+row.recipients.length>100)fail(429,'Broadcast daily recipient limit reached');
-    const record={_id:randomUUID(),owner:owner(user),listId:id,listName:row.name,requestId:request.requestId,messageHash:hash,status:'queued',cancelRequested:false,createdAt:date(),expiresAt:new Date(Date.now()+30*86400000),results:row.recipients.map(x=>({phone:x.phone,status:'pending'}))};
+    if((usage[0]?.total||0)+row.recipients.length>effective(user).dailyRecipients)fail(429,'Broadcast daily recipient limit reached');
+    const record={_id:randomUUID(),owner:owner(user),listId:id,listName:row.name,requestId:request.requestId,messageHash:hash,status:'queued',cancelRequested:false,createdAt:date(),expiresAt:new Date(Date.now()+effective(user).historyDays*86400000),results:row.recipients.map(x=>({phone:x.phone,status:'pending'}))};
     await jobs().insertOne(record);
     active.set(owner(user),record._id);
     void run(user,record,request.message).catch(()=>console.warn('[Broadcast] Job finalization unavailable'));

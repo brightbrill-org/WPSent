@@ -1,5 +1,6 @@
 'use strict';
 const store = require('../services/adminStore');
+const policy=require('../services/sendingPolicy');
 const { withControlLock } = require('../services/controlLock');
 const { WpUser } = require('./modelAccess');
 const { pending } = require('./authState');
@@ -87,6 +88,20 @@ module.exports = function registerAdmin(router) {
       }
     });
     res.json({ ok: true });
+  }));
+  router.get('/admin/api/sending-policy',requireAdmin,handler(async(req,res)=>res.json({global:policy.global(),fields:policy.fields,sessionKeys:policy.sessionKeys})));
+  router.put('/admin/api/sending-policy',requireAdmin,requireMutation,handler(async(req,res)=>{
+    const global=await withControlLock(async()=>{await store.assertActor(req.admin.email,tokenOf(req));return policy.setGlobal(req.body?.policy,req.admin.email);});
+    res.json({ok:true,global});
+  }));
+  router.get('/admin/api/phones/:phone/sending-policy',requireAdmin,handler(async(req,res)=>{
+    const phone=req.params.phone;if(!/^\d{1,32}$/.test(phone)||!await WpUser.findOne({phone,revokedAt:null}))return res.status(404).json({error:'Active phone not found'});
+    res.json(policy.session(phone));
+  }));
+  router.put('/admin/api/phones/:phone/sending-policy',requireAdmin,requireMutation,handler(async(req,res)=>{
+    const phone=req.params.phone;
+    const result=await withControlLock(async()=>{await store.assertActor(req.admin.email,tokenOf(req));if(!/^\d{1,32}$/.test(phone)||!await WpUser.findOne({phone,revokedAt:null}))throw Object.assign(new Error('Active phone not found'),{status:404});return policy.setSession(phone,req.body?.override,req.admin.email);});
+    res.json({ok:true,...result});
   }));
   router.get('/admin/api/admins', requireAdmin, handler(async (req, res) => res.json({ admins: await store.listAdmins() })));
   router.post('/admin/api/admins/approve', requireAdmin, requireMutation, handler(async (req, res) => {

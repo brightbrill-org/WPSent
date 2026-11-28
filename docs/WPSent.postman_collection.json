@@ -1179,6 +1179,22 @@
               }
             }
           }
+        },
+        {
+          "name": "Get global sending policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/sending-policy"
+          }
+        },
+        {
+          "name": "Get session sending policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/sending-policy"
+          }
         }
       ]
     },
@@ -1317,6 +1333,87 @@
               }
             },
             "description": "Blocks registration and deletes WPSent authentication data. Do not run against production as a test."
+          }
+        },
+        {
+          "name": "Set global sending policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/sending-policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policy\": {\n    \"intervalMs\": 2000\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
+          }
+        },
+        {
+          "name": "Set session sending policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/sending-policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"override\": {\n    \"intervalMs\": 3000\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
+          }
+        },
+        {
+          "name": "Reset session sending policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/sending-policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"override\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
           }
         }
       ]

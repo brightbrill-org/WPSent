@@ -4,8 +4,8 @@ function phone(raw){
   if(typeof raw!=='string'||!/^\+?[1-9]\d{6,14}$/.test(raw.trim()))fail('Use international phone numbers with country code, digits only');
   return raw.trim().replace(/^\+/,'');
 }
-function recipients(raw){
-  if(!Array.isArray(raw)||raw.length>25)fail('recipients must be an array of at most 25 entries');
+function recipients(raw,max=25){
+  if(!Array.isArray(raw)||raw.length>max)fail('recipients must be an array of at most '+max+' entries');
   const seen=new Set();
   return raw.map(x=>{
     const p=phone(x?.phone);

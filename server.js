@@ -50,6 +50,7 @@ async function start() {
     await mongoose.connect(MONGO_URI, { dbName: 'wpsent' });
     console.log('MongoDB connected');
 
+    await require('./services/sendingPolicy').initialize();
     await broadcasts.initialize();
     const secret = await getCookieSecret();
     app.set('trust proxy', 1);

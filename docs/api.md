@@ -652,8 +652,29 @@ Send: `POST /broadcasts/:id/send`, body `{"message":"Your requested update is re
 | WA_SEND_QUEUE_WAIT_MS | 5000 | 1000–10000 ms |
 | WA_BROADCAST_INTERVAL_MS | 3000 | 3000–60000 ms |
 
-One native client.sendMessage operation at a time across all linked accounts, with a fixed gap AFTER completion. Applies to text, documents, contact/location, native media, poll creation and quoted replies. Not inbound traffic, reads, group management, vote mutations or browser/background traffic. It smooths application dispatch, not a bandwidth guarantee or a way to bypass WhatsApp restrictions. A full/expired queue returns 503 where exposed; no dispatch occurred for that queued request. Existing action timeouts can still leave a dispatched send uncertain. Set environment variables and restart PM2 to change policy; GET /sending/settings shows effective values and current queue status. Zero interval retains serialization. Single PM2 fork only.
+One native client.sendMessage operation at a time across all linked accounts, with a fixed gap AFTER completion. Applies to text, documents, contact/location, native media, poll creation and quoted replies. Not inbound traffic, reads, group management, vote mutations or browser/background traffic. It smooths application dispatch, not a bandwidth guarantee or a way to bypass WhatsApp restrictions. A full/expired queue returns 503 where exposed; no dispatch occurred for that queued request. Existing action timeouts can still leave a dispatched send uncertain. Environment variables seed initial policy; administrator changes apply live; GET /sending/settings shows effective values and current queue status. Zero interval retains serialization. Single PM2 fork only.
 
 Dashboard Broadcasts tab supports list creation/edit/delete, pasted numbers, explicit consent confirmation, text job submission, latest job status/cancel and opt-out. Direct contact selection and full CSV parsing, media broadcasts, durable replay and delivery receipts are not included.
 
 Broadcast submission has a 90-second response deadline. If the deadline expires, the job stops and records the current recipient as unknown; the underlying native operation may still be running, so the global scheduler retains its slot until that operation settles. The dashboard shows the effective sending policy read-only. Consent/opt-out checks run again before native dispatch, but cannot recall an already dispatched message.
+
+### Administrator-managed global and session sending policy
+
+The environment variables seed the global policy on first startup. MongoDB persists the admin changes across restarts; editing .env afterwards does not overwrite saved policy. Admin console Sending policy: set global values, select a registered phone, set optional stricter overrides or reset to inherit. Global changes are live; new registrations inherit the current global policy. Global send serialization and resource caps remain in force; a session may increase gaps or lower limits, never weaken global protection. Existing dispatched operations cannot be undone. Lowering list/recipient limits does not delete saved lists; remove members or lists before submitting new broadcasts. Existing job retention dates are unchanged. Already queued requests keep their original maximum wait, but can be rejected earlier by a stricter policy. Active-job caps apply to new jobs. No automatic retries.
+
+| Environment seed | Default | Allowed range |
+|---|---:|---|
+| WA_SEND_INTERVAL_MS | 1000 | 0–5000 ms |
+| WA_SEND_QUEUE_MAX | 4 | 1–8 |
+| WA_SEND_QUEUE_WAIT_MS | 5000 | 1000–10000 ms |
+| WA_BROADCAST_INTERVAL_MS | 3000 | 3000–60000 ms |
+| WA_BROADCAST_MAX_LISTS | 20 | 1–20 |
+| WA_BROADCAST_MAX_RECIPIENTS | 25 | 1–25 |
+| WA_BROADCAST_DAILY_RECIPIENTS | 100 | 1–100 |
+| WA_BROADCAST_ACTIVE_JOBS_GLOBAL | 2 | 1–2 |
+| WA_BROADCAST_SUBMISSION_TIMEOUT_MS | 90000 | 10000–90000 ms |
+| WA_BROADCAST_HISTORY_DAYS | 30 | 1–30 |
+
+One native send globally, one active broadcast per phone and no automatic retries are fixed. Global active jobs and retention are global-only. Session fields are intervalMs, maxPending, waitMs, broadcastIntervalMs, maxLists, maxRecipients, dailyRecipients, submissionTimeoutMs.
+
+Admin API: GET/PUT /admin/api/sending-policy (PUT {"policy":{"intervalMs":2000}}); GET/PUT /admin/api/phones/:phone/sending-policy (PUT {"override":{"intervalMs":3000}}, or {"override":null} to inherit). Mutations require active administrator cookie, JSON and X-WPSent-Admin: 1. User GET /sending/settings exposes effective own session settings and global queue totals, not other phones' policies.

@@ -13,6 +13,10 @@ module.exports = function adminHTML() {
 <div id="console" hidden><p id="who"></p>
 <section><h2>Phone registration limit</h2><p id="count"></p><form id="limitForm"><label for="limit">Maximum active registered phones (blank = unlimited; 0 = stop new registrations)</label><input id="limit" type="number" min="0" max="100000" step="1"><button>Save limit</button></form><small>Lowering the limit does not disconnect existing phones. Revoked phones do not consume a slot.</small></section>
 <section><header><h2>Registered phones</h2><button id="refresh" class="secondary">Refresh</button></header><div class="scroll"><table><thead><tr><th>Phone</th><th>Session status</th><th>Registered</th><th>Last seen</th><th>Action</th></tr></thead><tbody id="phones"></tbody></table></div></section>
+<section><h2>Sending policy</h2><p class="muted">Global defaults apply to all phones. Session overrides can be more restrictive than global settings. Changes persist and apply without restart. One native send globally and one broadcast job per phone are fixed safeguards.</p>
+<form id="globalPolicyForm"><div id="globalPolicyFields"></div><button>Save global policy</button></form>
+<hr><h3>Session policy</h3><label for="policyPhone">Registered phone</label><select id="policyPhone"></select><p id="effectivePolicy" class="muted"></p>
+<form id="sessionPolicyForm"><div id="sessionPolicyFields"></div><button>Save session overrides</button><button type="button" id="inheritPolicy" class="secondary">Reset to global</button></form></section>
 <section><h2>Administrators</h2><p class="muted">Approve pending accounts, reset passwords or revoke access. The last active administrator cannot be revoked.</p><div class="scroll"><table><thead><tr><th>Email</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="admins"></tbody></table></div></section></div>
 <dialog id="resetDialog"><form id="resetForm"><h2>Reset administrator password</h2><p id="resetTarget"></p><label for="resetPassword">New password (minimum 12 characters)</label><input id="resetPassword" type="password" minlength="12" autocomplete="new-password" required><p><button>Reset password</button><button type="button" id="cancelReset" class="secondary">Cancel</button></p></form></dialog>
 <script>
@@ -31,7 +35,7 @@ function authMode(){current=null;$('auth').hidden=false;$('console').hidden=true
 async function refresh(){
   try {
     const me=await api('/me');current=me.admin.email;
-    const [p,adminList]=await Promise.all([api('/phones'),api('/admins')]);
+    const [p,adminList,policy]=await Promise.all([api('/phones'),api('/admins'),api('/sending-policy')]);
     $('auth').hidden=true;$('console').hidden=false;$('logout').hidden=false;$('who').textContent='Signed in as '+current;
     $('count').textContent=p.activeCount+' active registered phone(s) / '+(p.limit===null?'unlimited':p.limit);
     $('limit').value=p.limit===null?'':p.limit;
@@ -46,6 +50,7 @@ async function refresh(){
       },true);
       $('phones').append(row);
     }
+    await renderPolicy(policy,p.phones);
     $('admins').replaceChildren();
     for(const a of adminList.admins){
       const row=document.createElement('tr');cell(row,a.email+(a.email===current?' (you)':''));cell(row,a.status);cell(row,date(a.createdAt));const actions=cell(row,'');
@@ -58,6 +63,32 @@ async function refresh(){
     }
   }catch(e){if(e.status===401){authMode();}else tell(e.message);}
 }
+let policyMeta=null,policyVersion=0;
+const labels={intervalMs:'Send gap (ms)',maxPending:'Pending queue maximum',waitMs:'Queue wait (ms)',broadcastIntervalMs:'Broadcast gap (ms)',maxLists:'Lists per phone',maxRecipients:'Recipients per list',dailyRecipients:'Reserved recipients per rolling 24 hours',activeJobs:'Active broadcast jobs globally',submissionTimeoutMs:'Broadcast submission timeout (ms)',historyDays:'Job retention (days)'};
+function fields(container,keys,values,optional){
+ const el=$(container);el.replaceChildren();
+ for(const key of keys){const [env,def,min,max]=policyMeta.fields[key];const label=document.createElement('label');label.textContent=(labels[key]||key)+' ('+min+'–'+max+')';const input=document.createElement('input');input.type='number';input.min=min;input.max=max;input.step='1';input.dataset.key=key;input.required=!optional;input.value=values[key]??'';if(optional)input.placeholder='Inherit global';label.append(input);el.append(label);}
+}
+function readPolicy(container){const value={};for(const input of $(container).querySelectorAll('input[data-key]'))if(input.value!=='')value[input.dataset.key]=Number(input.value);return value;}
+async function loadSessionPolicy(){
+ const phone=$('policyPhone').value,version=++policyVersion;
+ if(!phone){$('sessionPolicyFields').replaceChildren();$('effectivePolicy').textContent='No active phone selected';return;}
+ const data=await api('/phones/'+encodeURIComponent(phone)+'/sending-policy');
+ if(version!==policyVersion||$('policyPhone').value!==phone)return;
+ fields('sessionPolicyFields',policyMeta.sessionKeys,data.override,true);
+ $('effectivePolicy').textContent='Effective: '+Object.entries(data.effective).map(([k,v])=>(labels[k]||k)+': '+v).join(' | ');
+}
+async function renderPolicy(meta,phones){
+ policyMeta=meta;fields('globalPolicyFields',Object.keys(meta.fields),meta.global,false);
+ const select=$('policyPhone'),selected=select.value;select.replaceChildren();
+ for(const row of phones.filter(x=>!x.revokedAt)){const opt=document.createElement('option');opt.value=row.phone;opt.textContent=row.phone;select.append(opt);}
+ if([...select.options].some(x=>x.value===selected))select.value=selected;
+ await loadSessionPolicy();
+}
+$('policyPhone').onchange=()=>loadSessionPolicy().catch(e=>tell(e.message));
+submit('globalPolicyForm',async()=>{await api('/sending-policy','PUT',{policy:readPolicy('globalPolicyFields')});tell('Global policy saved');await refresh();});
+submit('sessionPolicyForm',async()=>{const phone=$('policyPhone').value;if(!phone)throw new Error('Select an active phone');await api('/phones/'+encodeURIComponent(phone)+'/sending-policy','PUT',{override:readPolicy('sessionPolicyFields')});tell('Session policy saved');await loadSessionPolicy();});
+$('inheritPolicy').onclick=async()=>{try{const phone=$('policyPhone').value;if(!phone)return;await api('/phones/'+encodeURIComponent(phone)+'/sending-policy','PUT',{override:null});await loadSessionPolicy();tell('Session inherits global policy');}catch(e){tell(e.message);}};
 function date(v){return v?new Date(v).toLocaleString():'—';}
 function cell(row,text){const td=document.createElement('td');td.textContent=text;row.append(td);return td;}
 function button(parent,label,action,danger){const b=document.createElement('button');b.type='button';b.textContent=label;if(danger)b.className='danger';b.onclick=async()=>{b.disabled=true;try{await action();}catch(e){tell(e.message);if(e.status===401)authMode();}finally{b.disabled=false;}};parent.append(b);}

@@ -8,7 +8,7 @@ module.exports=router=>{
     res.set('Cache-Control','private, no-store');
     return res.status(status).json(await fn(req.wpUser,req.params,req.body));
   }));
-  add('get','/sending/settings',()=>wa.outboundSettings());
+  add('get','/sending/settings',u=>wa.outboundSettings(u.phone));
   add('get','/broadcasts',async u=>({items:await service.list(u)}));
   add('post','/broadcasts',(u,p,b)=>service.edit(u,null,'create',b),201);
   add('get','/broadcasts/jobs',async u=>({items:await service.history(u)}));

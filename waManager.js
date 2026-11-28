@@ -1,6 +1,8 @@
 const { Client } = require('whatsapp-web.js');
 const {config:outboundConfig,createPacer}=require('./utils/outboundPacer');
-const outboundPacer=createPacer(outboundConfig());
+const sendingPolicy=require('./services/sendingPolicy');
+const outboundPacer=createPacer({...outboundConfig(),getGlobal:sendingPolicy.global,getSession:phone=>sendingPolicy.session(phone).effective});
+sendingPolicy.subscribe(()=>outboundPacer.refresh());
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { createDirectoryReader } = require('./utils/directory');
@@ -341,7 +343,7 @@ function createSession(phone) {
   // Route every native send (text, media, polls, quoted replies) through
   // one bounded outbound scheduler. Do not pace inbound events or reads.
   const nativeSend=client.sendMessage.bind(client);
-  client.sendMessage=(chatId,body,options,preflight)=>outboundPacer.submit(async()=>{
+  client.sendMessage=(chatId,body,options,preflight)=>outboundPacer.submit(phone,async()=>{
     const check=()=>{if(shuttingDown||isPhoneBlocked(phone)||sessions.get(phone)!==session||session.destroyed||session.initFailed||session.status!=='ready')throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});};
     check();if(preflight)await preflight();check();
     return nativeSend(chatId,body,options);
@@ -622,7 +624,7 @@ async function sendBroadcastText(phone,to,message,preflight){
   };
   let sent;
   try{
-    sent=await deadline(()=>session.client.sendMessage(to+'@c.us',message,{waitUntilMsgSent:true,parseVCards:false,sendSeen:false},guard),90000,'WhatsApp broadcast submission');
+    sent=await deadline(()=>session.client.sendMessage(to+'@c.us',message,{waitUntilMsgSent:true,parseVCards:false,sendSeen:false},guard),sendingPolicy.session(phone).effective.submissionTimeoutMs,'WhatsApp broadcast submission');
   }catch(e){
     if(e.code==='WA_READY_TIMEOUT'){expired=true;throw Object.assign(new Error('Broadcast submission timed out; verify before retrying'),{code:'WA_BROADCAST_TIMEOUT'});}
     throw e;
@@ -631,7 +633,7 @@ async function sendBroadcastText(phone,to,message,preflight){
   if(!messageId||sent.type!=='chat')throw new Error('Broadcast submission unconfirmed');
   return {messageId};
 }
-function outboundSettings(){return {...outboundPacer.state(),broadcastIntervalMs:Math.max(3000,Math.min(60000,Number(process.env.WA_BROADCAST_INTERVAL_MS)||3000)),broadcastMaxRecipients:25,broadcastDailyRecipients:100};}
+function outboundSettings(phone){const session=sendingPolicy.session(phone);return {...outboundPacer.state(phone),...session.effective,broadcastMaxRecipients:session.effective.maxRecipients,broadcastDailyRecipients:session.effective.dailyRecipients,global:sendingPolicy.global(),session};}
 async function shutdown() {
   shuttingDown = true;
   outboundPacer.close();

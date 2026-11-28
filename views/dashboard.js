@@ -507,7 +507,7 @@ function renderBroadcasts(){
   panel.innerHTML='<div class="card"><div class="ct">Broadcast lists — consented text notifications</div>'+
     '<p style="font-size:12px;color:var(--muted);margin-bottom:12px">WPSent lists are not native WhatsApp lists. Add only recipients with recorded consent; maximum 25 per list. No automatic retry.</p>'+
     '<div class="cl">Server sending policy (read-only)</div><pre class="pr" id="bc-settings"></pre><button class="btn btn-g btn-s" id="bc-policy">Refresh sending policy</button>'+
-    '<p style="font-size:12px;color:var(--muted);margin:8px 0 14px">Server administrator can change the pacing environment variables and restart WPSent.</p>'+
+    '<p style="font-size:12px;color:var(--muted);margin:8px 0 14px">Server administrator can update global and phone-specific sending policy in the Admin console. Changes apply without restart.</p>'+
     '<label for="bc-list">Saved list</label><select id="bc-list" class="fi"></select>'+
     '<div class="row" style="margin:10px 0"><button class="btn btn-g" id="bc-refresh">Refresh</button><button class="btn btn-g" id="bc-new">New list</button><button class="btn btn-d" id="bc-delete">Delete list</button></div>'+
     '<label for="bc-name">List name</label><input id="bc-name" class="fi" maxlength="100"/>'+
@@ -557,7 +557,7 @@ function renderBroadcasts(){
   el('bc-job').onclick=run(async()=>{if(!broadcastJob){var h=await broadcastAPI('/broadcasts/jobs');broadcastJob=h.items[0]?._id||'';}if(!broadcastJob)throw new Error('No jobs');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob),null,2);});
   el('bc-cancel').onclick=run(async()=>{if(!broadcastJob)throw new Error('No selected job');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob+'/cancel','POST'),null,2);});
   el('bc-opt').onclick=run(async()=>{var d=await broadcastAPI('/broadcasts/opt-out','POST',{phone:el('bc-optout').value});await refresh();el('bc-result').textContent=JSON.stringify(d,null,2);});
-  var refreshPolicy=run(async()=>{var s=await broadcastAPI('/sending/settings');el('bc-settings').textContent='Global gap: '+s.intervalMs+' ms | Broadcast gap: '+s.broadcastIntervalMs+' ms\nPending: '+s.pending+' / '+s.maxPending+' | Queue wait: '+s.waitMs+' ms | Active: '+(s.active?'yes':'no');});
+  var refreshPolicy=run(async()=>{var s=await broadcastAPI('/sending/settings');el('bc-settings').textContent='Effective session gap: '+s.intervalMs+' ms | Broadcast gap: '+s.broadcastIntervalMs+' ms\nPending: '+s.pending+' / '+s.maxPending+' | Queue wait: '+s.waitMs+' ms | Active: '+(s.active?'yes':'no');});
   el('bc-policy').onclick=refreshPolicy;
   refreshPolicy();run(refresh)();
 }
