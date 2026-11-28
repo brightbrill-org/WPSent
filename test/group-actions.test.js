@@ -116,7 +116,7 @@ test('lazy preparation runs its known bundle loader only when job is absent',asy
 test('description preflight checks required modules before mutation',async()=>{
   const sequence=[];
   const {run}=fixture({setDescription:async value=>{sequence.push(value);return true;}},{
-    pupPage:{evaluate:async(fn,id)=>{assert.equal(id,groupId);assert.match(fn.toString(),/WAWebMsgKey/);assert.match(fn.toString(),/WAWebGroupModifyInfoJob/);sequence.push('preflight');return 'ready';}}
+    pupPage:{evaluate:async(fn,id,desc)=>{assert.equal(id,groupId);assert.match(fn.toString(),/WAWebMsgKey/);assert.match(fn.toString(),/WAWebGroupModifyInfoJob/);if(desc===undefined){sequence.push('preflight');return 'ready';}sequence.push(desc);return 'updated';}}
   });
   assert.equal((await run(phone,'description',req('description',{description:'New'}))).description,'New');
   assert.deepEqual(sequence,['preflight','New']);
@@ -137,13 +137,38 @@ test('native description errors become explicit group errors with no automatic r
 });
 test('description preflight accepts a group without an existing description ID',async()=>{
   const {run}=fixture({setDescription:async()=>true},{
-    pupPage:{evaluate:async(fn,id)=>{
+    pupPage:{evaluate:async(fn,id,desc)=>{
       const previous=global.window;
       global.window={require:name=>({
-        WAWebWidFactory:{createWid(){}},WAWebMsgKey:{newId(){}},WAWebGroupModifyInfoJob:{setGroupDescription(){}}
+        WAWebWidFactory:{createWid:()=>({id})},WAWebMsgKey:{newId:async()=> 'new-key'},WAWebGroupModifyInfoJob:{setGroupDescription:async args=>{assert.equal(args.desc,'');assert.equal(args.prevDescId,undefined);}}
       })[name],WWebJS:{getChat:async()=>({groupMetadata:{}})}};
-      try{return await fn(id);}finally{if(previous===undefined)delete global.window;else global.window=previous;}
+      try{return await fn(id,desc);}finally{if(previous===undefined)delete global.window;else global.window=previous;}
     }}
   });
   assert.equal((await run(phone,'description',req('description',{description:''}))).description,'');
+});
+
+test('description adapter passes a single named object to WhatsApp and never calls outdated native method',async()=>{
+  const groupWid={id:groupId};let calls=0;
+  const {run}=fixture({setDescription:()=>assert.fail('outdated method must not run')},{
+    pupPage:{evaluate:async(fn,id,desc)=>{
+      const previous=global.window;
+      global.window={require:name=>({
+        WAWebWidFactory:{createWid:x=>{assert.equal(x,groupId);return groupWid;}},
+        WAWebMsgKey:{newId:async()=> 'new-key'},
+        WAWebGroupModifyInfoJob:{setGroupDescription:async(...args)=>{calls++;assert.deepEqual(args,[{groupWid,desc:'Updated',newDescId:'new-key',prevDescId:'old-key'}]);}}
+      })[name],WWebJS:{getChat:async()=>({groupMetadata:{descId:'old-key'}})}};
+      try{return await fn(id,desc);}finally{if(previous===undefined)delete global.window;else global.window=previous;}
+    }}
+  });
+  assert.equal((await run(phone,'description',req('description',{description:'Updated'}))).description,'Updated');
+  assert.equal(calls,1);
+});
+test('description adapter does not retry an explicitly rejected update',async()=>{
+  let calls=0;
+  const {run}=fixture({setDescription:()=>assert.fail('no fallback')},{
+    pupPage:{evaluate:async(fn,id,desc)=>{if(desc===undefined)return 'ready';calls++;return 'rejected';}}
+  });
+  await assert.rejects(run(phone,'description',req('description',{description:'New'})),{code:'WA_GROUP_FAILED'});
+  assert.equal(calls,1);
 });

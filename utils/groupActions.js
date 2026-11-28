@@ -110,7 +110,7 @@ async function prepareGroupCreation(client,guard){
 }
 // Check the exact dependencies used by GroupChat.setDescription in
 // whatsapp-web.js 1.34.8. This is read-only and does not generate IDs or
-// submit a mutation. No speculative internal API fallback is attempted.
+// submit a mutation. The update uses the documented compatibility adapter below.
 async function prepareDescription(client,id,guard){
   if(!client.pupPage||typeof client.pupPage.evaluate!=='function')return;
   guard();
@@ -139,6 +139,37 @@ async function prepareDescription(client,id,guard){
     console.warn('[WA] Group description preflight:',reason);
     fail('WhatsApp group description unavailable ('+reason+'); check WhatsApp Web compatibility','WA_GROUP_UNAVAILABLE');
   }
+}
+// Current WhatsApp Web expects a named argument object, whereas
+// whatsapp-web.js 1.34.8 passes four positional arguments (WAHA #2199).
+// Select the corrected path before dispatch; never retry a mutation.
+async function updateDescription(client,group,id,description,guard){
+  if(!client.pupPage||typeof client.pupPage.evaluate!=='function'){
+    guard();
+    return group.setDescription(description);
+  }
+  await prepareDescription(client,id,guard);
+  guard();
+  const result=await client.pupPage.evaluate(async(groupId,desc)=>{
+    const factory=window.require('WAWebWidFactory');
+    const groupWid=factory.createWid(groupId);
+    const chat=await window.WWebJS.getChat(groupId,{getAsModel:false});
+    if(!groupWid||!chat?.groupMetadata)return 'metadata_unavailable';
+    const newDescId=await window.require('WAWebMsgKey').newId();
+    if(!newDescId)return 'key_unavailable';
+    try{
+      await window.require('WAWebGroupModifyInfoJob').setGroupDescription({
+        groupWid,desc,newDescId,prevDescId:chat.groupMetadata.descId
+      });
+      return 'updated';
+    }catch(e){
+      if(e?.name==='ServerStatusCodeError')return 'rejected';
+      throw e;
+    }
+  },id,description);
+  guard();
+  if(result==='metadata_unavailable'||result==='key_unavailable')fail('WhatsApp group description prerequisites unavailable ('+result+')','WA_GROUP_UNAVAILABLE');
+  return result==='updated';
 }
 function createdGroupId(raw){
   const gid=raw?.gid;
@@ -227,11 +258,11 @@ function createGroupActions({getSession,isBlocked,timeoutMs=45000,maxActive=4}){
       if(action==='subject'||action==='description'){
         const key=action,method=action==='subject'?'setSubject':'setDescription';
         if(typeof group[method]!=='function')fail('WhatsApp group '+key+' method unavailable','WA_GROUP_UNAVAILABLE');
-        if(action==='description')await prepareDescription(client,request.groupId,guard);
         guard();
         let updated;
-        try{updated=await group[method](request[key]);}
+        try{updated=action==='description'?await updateDescription(client,group,request.groupId,request[key],guard):await group[method](request[key]);}
         catch(e){
+          if(['WA_GROUP_UNAVAILABLE','WA_GROUP_TIMEOUT','WA_NOT_READY'].includes(e?.code))throw e;
           // Keep technical details in server logs. Never expose arbitrary
           // browser errors, group text or internal stack traces to API users.
           console.error('[WA] Group '+key+' update failed:',e?.stack||e?.message||String(e));
