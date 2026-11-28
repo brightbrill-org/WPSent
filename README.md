@@ -273,3 +273,24 @@ Use `x-client-id` and `x-api-key`. Each response is `{ok,total,limit,offset,hasM
 Authenticated `POST /seen` with JSON `{"chatId":"919000000001@c.us"}` marks a whole conversation as read; returns `{ok:true,chatId,seen:true}`. Supports group IDs, LIDs and international phone numbers. WhatsApp controls read-receipt visibility.
 
 Authenticated `POST /reply` with JSON `{"messageId":"false_919000000001@c.us_EXAMPLE123","message":"Thank you!","markSeen":false}` sends a native quoted text reply in the original conversation. The message ID is the full WhatsApp identifier, not the database log ID. New inbound webhooks and logs expose `chatId` and, when available, `messageId`; normal inbound webhooks now always include `logId`. No old-log backfill and no reaction reply target. Replies return `{ok,chatId,messageId,replyToMessageId,logId}`. Only text (max 16000 chars), optional boolean markSeen defaults false. Original message must still be available in the linked WhatsApp session. No caller-selected destination or silent unquoted fallback. Both APIs require Ready. HTTP 400 invalid input, 401/403 auth, 404 missing original/chat, 503 busy/not ready, 504 timeout, 502 unconfirmed action, 500 unexpected failure. Check the conversation before retrying an uncertain send. A successful send with failed DB logging returns ok=true and a warning with null logId. One outstanding action per account and four globally, 20-second request deadline (cannot cancel a browser operation already issued).
+
+### WhatsApp group management
+
+Use existing API authentication headers. All existing-group operations require the linked WhatsApp account to be a group admin (not merely a WPSent admin).
+
+| Method | Path | JSON body |
+|---|---|---|
+| POST | `/groups` | `{"subject":"Project team","participants":["919000000001"]}` |
+| POST | `/groups/:groupId/participants` | `{"participants":["919000000002"]}` |
+| DELETE | `/groups/:groupId/participants` | `{"participants":["919000000002@c.us"]}` |
+| PATCH | `/groups/:groupId/subject` | `{"subject":"New name"}` |
+| PATCH | `/groups/:groupId/description` | `{"description":"New description"}` |
+| GET | `/groups/:groupId/invite` | None |
+
+Create returns 201 with groupId, participant results and allAdded. Add returns participant codes and allAdded. Remove checks actual membership and re-reads the group after removal, reports removed/unconfirmed/not_found/ambiguous/owner_protected and allRemoved. A successful HTTP response does not imply all members were added/removed. Subject max 100 characters; description max 2048, empty clears; participants max 20 per operation. Phone IDs and LIDs supported; no guessing LID digits, no automatic private invitations, no self-removal. Invite retrieval returns inviteCode and inviteLink; it does not reset links. Keep links private. Find group IDs via GET /chats?type=group. Ready session required; one outstanding group action per session, four globally, 45-second deadline. Verify actual group state before retrying uncertain operations. No new dependencies or schema changes.
+
+Group creation compatibility: WPSent prepares the lazy-loaded WhatsApp Web group creation job before invoking the native API. If the job or loader is unavailable, it returns 503 before attempting creation. Native library string errors are surfaced as 502; check the actual group list before retrying. Internal WhatsApp Web modules are version-dependent.
+
+Group description compatibility: a read-only preflight checks the native library's required modules and group metadata before updating the description. Missing dependencies return 503 with a diagnostic reason; native exceptions return 502 (503 for interrupted browser connections) and details are recorded in server logs. No automatic mutation retries. The browser adapter uses the current named-object signature of setGroupDescription (WAHA issue #2199) instead of the outdated positional call in whatsapp-web.js 1.34.8.
+
+Invite retrieval compatibility: load the WhatsApp Web invite drawer bundle only if its native invite query is missing (upstream wwebjs #201916), then use getInviteCode. Missing modules return 503; native query failures return 502 or 503 for connection loss. Never reset links or log invite codes.

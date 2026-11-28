@@ -92,6 +92,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#types">Message Types</a>
     <a href="#admin">Administration</a>
     <a href="#directory">Chats &amp; contacts</a>
+    <a href="#groups">Group management</a>
     <a href="#contact">Contact</a>
   </div>
   <div class="doc">
@@ -283,6 +284,33 @@ GET /contacts?resolveLid=true</pre>
   }]
 }</pre>
     <p>Chat timestamps are Unix seconds; chats sorted most recent first, contacts by name. Missing fields are null. Use returned <code>id</code> as <code>to</code> in Send API. Contacts reflect the linked WhatsApp Web session, not necessarily the complete phone address book. Broadcast/status/newsletter entries are excluded. Pagination is over a live directory, not a fixed snapshot; concurrent changes can move items between pages. Invalid query: 400; credentials: 401/403; session unavailable/busy: 503; directory timeout: 504. Responses are private and not cacheable.</p>
+
+    <h2 id="groups">Group management</h2>
+    <p>All group APIs require the existing Client ID and API key headers and a ready linked WhatsApp account. Existing-group operations require the linked account to be a WhatsApp group administrator; WPSent administrator status does not grant WhatsApp permissions. Use <code>GET /chats?type=group</code> to find group IDs.</p>
+    <pre>POST /groups
+{ "subject": "Project team", "participants": ["919000000001", "919000000002@c.us"] }
+
+POST /groups/123456789-123456789@g.us/participants
+{ "participants": ["919000000003"] }
+
+DELETE /groups/123456789-123456789@g.us/participants
+{ "participants": ["919000000003@c.us"] }
+
+PATCH /groups/123456789-123456789@g.us/subject
+{ "subject": "Updated project team" }
+
+PATCH /groups/123456789-123456789@g.us/description
+{ "description": "Project coordination and updates" }
+
+GET /groups/123456789-123456789@g.us/invite</pre>
+    <p>Subject: non-empty, max 100 characters. Description: max 2048 characters; empty string clears it. Participants: 1–20 per add/remove, 0–20 for creation; international phone numbers, individual phone IDs or LIDs. Duplicates are normalized. No automatic private invitation messages: privacy restrictions remain respected. Add/create return per-participant codes (200 added, 409 already a member, 403 invite required, 404 unavailable; null means result not matched). Group creation returns HTTP 201 with groupId even when participant additions are partial; inspect allAdded and participants. Remove checks membership before dispatch and re-reads the group; removed is true only when absence is observed, otherwise unconfirmed. The linked account and group owner cannot be removed by this API.</p>
+    <pre>{
+  "ok": true,
+  "groupId": "123456789-123456789@g.us",
+  "inviteCode": "EXAMPLE_INVITE_CODE",
+  "inviteLink": "https://chat.whatsapp.com/EXAMPLE_INVITE_CODE"
+}</pre>
+    <p>Group creation prepares the WhatsApp Web group creation module before dispatch; missing or incompatible modules return 503. Native creation errors return 502 with the available library error. Verify group state before retrying. Group description updates check the required WhatsApp Web modules and group metadata before dispatch and use the current named-object signature to avoid the upstream toJid error. Missing dependencies return 503 with a diagnostic reason; unexpected native update failures return 502 and technical details are recorded in server logs. Check actual group state before retrying. Invite retrieval prepares the lazy WhatsApp Web invite query module when necessary. Missing modules return 503 and native query failures return 502 or 503 for connection loss. Invite links are sensitive; distribute only to intended participants. The invite endpoint retrieves the current code without resetting it. HTTP 400 invalid input, 401/403 authentication or permissions, 404 group not found, 502 unconfirmed operation, 503 busy/not ready/unavailable, 504 timeout. Operations have a 45-second deadline, one outstanding operation per linked session and four globally. Timeout cannot undo an already dispatched operation; inspect group state before retrying. WhatsApp may impose stricter limits or permissions. No raw group models or invite codes are saved by WPSent.</p>
 
     <h2 id="webhooks">Webhooks</h2>
     <p>Register a separate URL for each event type. Existing subscriptions and requests without an event remain inbound-message webhooks. Query params in your URL are preserved.</p>

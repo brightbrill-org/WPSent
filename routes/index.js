@@ -9,6 +9,7 @@ const registerWebhooks = require('./webhooks');
 const registerContacts = require('./contacts');
 const registerAdmin = require('./admin');
 const registerMedia = require('./media');
+const registerGroups = require('./groups');
 
 const router = express.Router();
 
@@ -21,5 +22,6 @@ registerWebhooks(router);
 registerContacts(router);
 registerAdmin(router);
 registerMedia(router);
+registerGroups(router);
 
 module.exports = router;

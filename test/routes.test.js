@@ -61,7 +61,13 @@ const expected = [
   ['post', '/admin/api/admins/revoke', requireAdmin],
   ['post', '/admin/api/admins/password', requireAdmin],
   ['get', '/media/:id', requireKey],
-  ['get', '/api/media/:id', requireDashboard]
+  ['get', '/api/media/:id', requireDashboard],
+  ['post', '/groups', requireKey],
+  ['post', '/groups/:groupId/participants', requireKey],
+  ['delete', '/groups/:groupId/participants', requireKey],
+  ['patch', '/groups/:groupId/subject', requireKey],
+  ['patch', '/groups/:groupId/description', requireKey],
+  ['get', '/groups/:groupId/invite', requireKey]
 ];
 
 test('all existing routes retain method, path, registration order and auth guard', () => {
@@ -289,4 +295,24 @@ test('action docs and Postman contain both authenticated requests',()=>{
     const req=items.find(x=>x.name===name).request;
     assert.equal(req.url,'{{baseUrl}}/'+path);assert.equal(req.method,'POST');assert.doesNotThrow(()=>JSON.parse(req.body.raw));
   }
+});
+
+test('group routes validate input and dispatch only for owning account',async()=>{
+  const handler=router.stack.find(layer=>layer.route?.path==='/groups').route.stack[1].handle;
+  wa.groupAction=async(phone,action,request)=>{assert.equal(phone,'owner-a');assert.equal(action,'create');assert.equal(request.subject,'Test');return {ok:true,groupId:'123@g.us'};};
+  const res=lidResponse();await handler({body:{subject:'Test',participants:['919000000001'],phone:'other'},wpUser:{phone:'owner-a'}},res);assert.equal(res.statusCode,201);
+  const bad=lidResponse();await handler({body:{subject:''},wpUser:{phone:'owner-a'}},bad);assert.equal(bad.statusCode,400);
+});
+test('group permissions and timeout failures map to explicit HTTP status',async()=>{
+  const handler=router.stack.find(layer=>layer.route?.path==='/groups/:groupId/invite').route.stack[1].handle;
+  for(const [code,status] of [['WA_GROUP_FORBIDDEN',403],['WA_GROUP_NOT_FOUND',404],['WA_GROUP_TIMEOUT',504],['WA_NOT_READY',503]]){
+    wa.groupAction=async()=>{throw Object.assign(new Error('test'),{code});};
+    const res=lidResponse();await handler({params:{groupId:'123@g.us'},wpUser:{phone:'owner-a'}},res);assert.equal(res.statusCode,status);
+  }
+});
+test('group management docs and all six Postman requests are present',()=>{
+  assert.ok(docsHTML('https://example.test').includes('id="groups"'));
+  const folder=require('../docs/WPSent.postman_collection.json').item.find(x=>x.name.startsWith('Group management'));
+  assert.equal(folder.item.length,6);
+  for(const item of folder.item)if(item.request.body)assert.doesNotThrow(()=>JSON.parse(item.request.body.raw));
 });
