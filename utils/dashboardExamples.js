@@ -320,7 +320,248 @@ const EXAMPLES=[
       "label": "Poll votes",
       "event": "poll_vote_updated"
     }
+  },
+{
+  "name": "Get sending settings",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/sending/settings"
+},
+{
+  "name": "List broadcasts",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts"
+},
+{
+  "name": "Create broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts",
+  "body": {
+    "name": "Customer updates",
+    "recipients": [
+      {
+        "phone": "{{recipient}}",
+        "consent": true,
+        "consentSource": "Recorded customer opt-in"
+      }
+    ]
   }
+},
+{
+  "name": "Broadcast job history",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts/jobs"
+},
+{
+  "name": "Get broadcast job",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts/jobs/{{jobId}}"
+},
+{
+  "name": "Cancel broadcast job",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/jobs/{{jobId}}/cancel"
+},
+{
+  "name": "Record broadcast opt-out",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/opt-out",
+  "body": {
+    "phone": "{{recipient}}"
+  }
+},
+{
+  "name": "Get broadcast list",
+  "group": "Broadcasts and sending",
+  "method": "GET",
+  "path": "/broadcasts/{{broadcastId}}"
+},
+{
+  "name": "Rename broadcast list",
+  "group": "Broadcasts and sending",
+  "method": "PATCH",
+  "path": "/broadcasts/{{broadcastId}}",
+  "body": {
+    "name": "Updated customer list"
+  }
+},
+{
+  "name": "Delete broadcast list",
+  "group": "Broadcasts and sending",
+  "method": "DELETE",
+  "path": "/broadcasts/{{broadcastId}}"
+},
+{
+  "name": "Add broadcast recipients",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/recipients",
+  "body": {
+    "recipients": [
+      {
+        "phone": "{{recipient}}",
+        "consent": true,
+        "consentSource": "Recorded customer opt-in"
+      }
+    ]
+  }
+},
+{
+  "name": "Remove broadcast recipients",
+  "group": "Broadcasts and sending",
+  "method": "DELETE",
+  "path": "/broadcasts/{{broadcastId}}/recipients",
+  "body": {
+    "phones": [
+      "{{recipient}}"
+    ]
+  }
+},
+{
+  "name": "Send text broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "message": "Your requested service update is available.",
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send image broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "image": {
+      "mimetype": "image/jpeg",
+      "data": "{{imageBase64}}",
+      "filename": "photo.jpg",
+      "caption": "Example caption"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send video broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "video": {
+      "mimetype": "video/mp4",
+      "data": "{{videoBase64}}",
+      "filename": "demo.mp4",
+      "caption": "Example caption"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send voice note broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "voiceNote": {
+      "mimetype": "audio/ogg",
+      "data": "{{voiceNoteBase64}}",
+      "filename": "voice.ogg"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send document broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "document": {
+      "mimetype": "application/pdf",
+      "filename": "sample.pdf",
+      "data": "{{documentBase64}}"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send contact broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "contact": {
+      "name": "Example Support",
+      "phone": "+919000000002",
+      "organization": "Example Company",
+      "email": "support@example.com"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send location broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "location": {
+      "latitude": 10.0731,
+      "longitude": 78.7802,
+      "name": "Example Office",
+      "address": "Karaikudi, Tamil Nadu"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send single-choice poll broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "question": "Choose an option",
+    "options": [
+      "A",
+      "B"
+    ],
+    "allowMultipleAnswers": false,
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send multiple-choice poll broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "poll": {
+      "question": "Choose products",
+      "options": [
+        "E360",
+        "HireHub"
+      ],
+      "allowMultipleAnswers": true
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+}
 ];
 
 // Serialized into browser script; origin comes from window.location.origin.

@@ -59,7 +59,7 @@ function createPollActions({getSession,isBlocked,timeoutMs=30000,maxActive=4}){
     const guard=()=>{if(expired)fail('Poll operation timed out','WA_POLL_TIMEOUT');check(phone,s);};
     const work=Promise.resolve().then(()=>{guard();return fn(s.client,guard,s);}).finally(()=>{active--;busy.delete(s);});
     try{return await deadline(()=>work,timeoutMs,'WhatsApp poll operation');}
-    catch(e){if(e?.code==='WA_READY_TIMEOUT'){expired=true;fail('Poll operation timed out; verify state before retrying','WA_POLL_TIMEOUT');}if(['INVALID_POLL','WA_NOT_READY','WA_POLL_BUSY','WA_POLL_TIMEOUT','WA_POLL_NOT_FOUND','WA_POLL_FAILED'].includes(e?.code))throw e;fail('WhatsApp poll operation not confirmed; verify state before retrying','WA_POLL_FAILED');}
+    catch(e){if(e?.code==='WA_READY_TIMEOUT'){expired=true;fail('Poll operation timed out; verify state before retrying','WA_POLL_TIMEOUT');}if(['INVALID_POLL','WA_NOT_READY','WA_POLL_BUSY','WA_POLL_TIMEOUT','WA_POLL_NOT_FOUND','WA_POLL_FAILED','WA_SEND_BUSY','WA_SEND_QUEUE_TIMEOUT','WA_SEND_STOPPED'].includes(e?.code))throw e;fail('WhatsApp poll operation not confirmed; verify state before retrying','WA_POLL_FAILED');}
   }
   async function get(client,id,guard){
     const msg=await client.getMessageById(id);guard();

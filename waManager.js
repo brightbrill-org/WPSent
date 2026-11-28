@@ -1,4 +1,8 @@
 const { Client } = require('whatsapp-web.js');
+const {config:outboundConfig,createPacer}=require('./utils/outboundPacer');
+const sendingPolicy=require('./services/sendingPolicy');
+const outboundPacer=createPacer({...outboundConfig(),getGlobal:sendingPolicy.global,getSession:phone=>sendingPolicy.session(phone).effective});
+sendingPolicy.subscribe(()=>outboundPacer.refresh());
 const { deadline, positiveInt, createWatchdog, retryDelay, instrumentAttachment } = require('./utils/readiness');
 const { createLidResolver, webhookSender } = require('./utils/lidResolver');
 const { createDirectoryReader } = require('./utils/directory');
@@ -336,6 +340,14 @@ function createSession(phone) {
 
   const session = { client, auth, status: 'initializing', qr: null, needsPair: false, destroyed: false, reconnecting: false, authenticated: false, qrTimer: null };
   sessions.set(phone, session);
+  // Route every native send (text, media, polls, quoted replies) through
+  // one bounded outbound scheduler. Do not pace inbound events or reads.
+  const nativeSend=client.sendMessage.bind(client);
+  client.sendMessage=(chatId,body,options,preflight)=>outboundPacer.submit(phone,async()=>{
+    const check=()=>{if(shuttingDown||isPhoneBlocked(phone)||sessions.get(phone)!==session||session.destroyed||session.initFailed||session.status!=='ready')throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});};
+    check();if(preflight)await preflight();check();
+    return nativeSend(chatId,body,options);
+  });
   session.watchdog = createWatchdog({ timeoutMs: READY_TIMEOUT_MS, onTimeout: () => {
     failInitialization(phone, session, new Error('Authenticated but Ready not received within ' + READY_TIMEOUT_MS + 'ms'));
   }});
@@ -601,8 +613,32 @@ async function sendMessage(phone, to, body, shareType) {
   }
 }
 
+async function sendBroadcastPayload(phone,to,payload,preflight){
+  const session=sessions.get(phone);
+  if(!session||session.status!=='ready'||shuttingDown||isPhoneBlocked(phone))throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});
+  let expired=false;
+  const guard=async()=>{
+    if(expired)throw Object.assign(new Error('Broadcast send deadline expired before dispatch'),{code:'WA_BROADCAST_STOPPED'});
+    if(preflight)await preflight();
+    if(expired)throw Object.assign(new Error('Broadcast send deadline expired before dispatch'),{code:'WA_BROADCAST_STOPPED'});
+  };
+  const {materialize}=require('./utils/broadcastPayload');
+  const prepared=materialize(payload,require('whatsapp-web.js'));
+  let sent;
+  try{
+    sent=await deadline(()=>session.client.sendMessage(to+'@c.us',prepared.payload,prepared.options,guard),sendingPolicy.session(phone).effective.submissionTimeoutMs,'WhatsApp broadcast submission');
+  }catch(e){
+    if(e.code==='WA_READY_TIMEOUT'){expired=true;throw Object.assign(new Error('Broadcast submission timed out; verify before retrying'),{code:'WA_BROADCAST_TIMEOUT'});}
+    throw e;
+  }
+  const messageId=messageIdOf(sent);
+  if(!messageId||sent.type!==payload.expected)throw new Error('Broadcast submission unconfirmed');
+  return {messageId};
+}
+function outboundSettings(phone){const session=sendingPolicy.session(phone);return {...outboundPacer.state(phone),...session.effective,broadcastMaxRecipients:session.effective.maxRecipients,broadcastDailyRecipients:session.effective.dailyRecipients,global:sendingPolicy.global(),session};}
 async function shutdown() {
   shuttingDown = true;
+  outboundPacer.close();
   for (const t of restoreTimers) clearTimeout(t);
   restoreTimers.clear();
   for (const t of reconnectTimers.values()) clearTimeout(t);
@@ -646,6 +682,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, sendNativeMedia, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
+  onQR, offQR, sendMessage, sendNativeMedia, sendBroadcastPayload, outboundSettings, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

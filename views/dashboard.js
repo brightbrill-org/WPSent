@@ -154,11 +154,13 @@ textarea.fi{resize:vertical;min-height:80px;}
     <div class="tab on"  id="t-logs"       onclick="sw('logs')">Logs</div>
     <div class="tab"     id="t-playground" onclick="sw('playground')">Playground</div>
     <div class="tab"     id="t-webhooks"   onclick="sw('webhooks')">Webhooks</div>
+    <div class="tab" id="t-broadcasts" onclick="sw('broadcasts')">Broadcasts</div>
     <div class="tab"     id="t-examples"   onclick="sw('examples')">Examples</div>
   </div>
   <div class="panel on" id="p-logs"><div class="loading">Loading...</div></div>
   <div class="panel"    id="p-playground"></div>
   <div class="panel"    id="p-webhooks"></div>
+  <div class="panel" id="p-broadcasts"></div>
   <div class="panel"    id="p-examples"></div>
 </main>
 <div class="toast" id="toast"></div>
@@ -281,6 +283,7 @@ function renderAll() {
   renderPlayground();
   renderWebhooks();
   renderExamples();
+  renderBroadcasts();
 }
 
 function renderStats() {
@@ -494,8 +497,105 @@ function updateExample(){
   document.getElementById('ex-code').textContent=buildExample(example,origin,exampleLanguage);
 }
 
+var broadcastLists=[],broadcastSelected='',broadcastJob='';
+async function broadcastAPI(path,method,body){
+  var r=await fetch(path,{method:method||'GET',headers:{'x-client-id':CID,'x-api-key':KEY,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+  var d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d;
+}
+function renderBroadcasts(){
+  var panel=document.getElementById('p-broadcasts');
+  panel.innerHTML='<div class="card"><div class="ct">Broadcast lists — consented notifications</div>'+
+    '<p style="font-size:12px;color:var(--muted);margin-bottom:12px">WPSent lists are not native WhatsApp lists. Add only recipients with recorded consent; maximum 25 per list. No automatic retry.</p>'+
+    '<div class="cl">Server sending policy (read-only)</div><pre class="pr" id="bc-settings"></pre><button class="btn btn-g btn-s" id="bc-policy">Refresh sending policy</button>'+
+    '<p style="font-size:12px;color:var(--muted);margin:8px 0 14px">Server administrator can update global and phone-specific sending policy in the Admin console. Changes apply without restart.</p>'+
+    '<label for="bc-list">Saved list</label><select id="bc-list" class="fi"></select>'+
+    '<div class="row" style="margin:10px 0"><button class="btn btn-g" id="bc-refresh">Refresh</button><button class="btn btn-g" id="bc-new">New list</button><button class="btn btn-d" id="bc-delete">Delete list</button></div>'+
+    '<label for="bc-name">List name</label><input id="bc-name" class="fi" maxlength="100"/>'+
+    '<label for="bc-phones">International numbers, separated by commas or new lines</label><textarea id="bc-phones" class="fi" rows="4"></textarea>'+
+    '<label for="bc-source">Consent record reference (for every listed recipient)</label><input id="bc-source" class="fi" maxlength="200"/>'+
+    '<label style="display:block;margin:10px 0"><input type="checkbox" id="bc-consent"/> I have recorded consent from every recipient.</label>'+
+    '<button class="btn btn-g" id="bc-save">Save list</button>'+
+    '<hr style="border:0;border-top:1px solid var(--border);margin:16px 0"/>'+
+    '<label for="bc-type">Message type</label><select id="bc-type" class="fi"><option value="message">Text</option><option value="image">Image</option><option value="video">Video</option><option value="voiceNote">Voice note</option><option value="document">Document</option><option value="contact">Contact card</option><option value="location">Location</option><option value="poll">Poll</option></select>'+
+    '<div id="bc-payload"></div>'+
+    '<label style="display:block;margin:10px 0"><input type="checkbox" id="bc-confirm"/> Confirm recipients still consent to this message.</label>'+
+    '<div class="row"><button class="btn" id="bc-send">Submit broadcast</button><button class="btn btn-g" id="bc-job">Refresh job</button><button class="btn btn-d" id="bc-cancel">Cancel remaining sends</button></div>'+
+    '<label for="bc-optout" style="display:block;margin-top:14px">Record account-wide broadcast opt-out</label><input class="fi" id="bc-optout" placeholder="International phone number"/><button class="btn btn-g" id="bc-opt">Record opt-out</button>'+
+    '<pre class="pr" id="bc-result"></pre></div>';
+  var el=id=>document.getElementById(id);
+  var run=fn=>async()=>{try{await fn();}catch(e){el('bc-result').textContent=e.message;}};
+  async function refresh(){
+    var data=await broadcastAPI('/broadcasts');broadcastLists=data.items;
+    var select=el('bc-list');select.textContent='';
+    var empty=document.createElement('option');empty.value='';empty.textContent='Select or create a list';select.appendChild(empty);
+    broadcastLists.forEach(function(x){var o=document.createElement('option');o.value=x._id;o.textContent=x.name+' ('+x.recipients.length+')';select.appendChild(o);});
+    select.value=broadcastSelected;loadSelected();
+  }
+  function loadSelected(){
+    broadcastSelected=el('bc-list').value;
+    var row=broadcastLists.find(x=>x._id===broadcastSelected);
+    el('bc-name').value=row?row.name:'';el('bc-phones').value=row?row.recipients.map(x=>x.phone).join('\n'):'';
+    el('bc-source').value='';el('bc-consent').checked=false;
+  }
+  el('bc-list').onchange=loadSelected;el('bc-refresh').onclick=run(refresh);
+  el('bc-new').onclick=()=>{el('bc-list').value='';loadSelected();};
+  el('bc-save').onclick=run(async()=>{
+    if(!el('bc-consent').checked)throw new Error('Confirm recorded consent first');
+    var recipients=el('bc-phones').value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean).map(phone=>({phone,consent:true,consentSource:el('bc-source').value}));
+    var row=await broadcastAPI('/broadcasts'+(broadcastSelected?'/'+broadcastSelected:''),broadcastSelected?'PATCH':'POST',{name:el('bc-name').value,recipients});
+    broadcastSelected=row._id;await refresh();el('bc-result').textContent='List saved';
+  });
+  el('bc-delete').onclick=run(async()=>{if(!broadcastSelected||!window.confirm('Delete selected broadcast list?'))return;await broadcastAPI('/broadcasts/'+broadcastSelected,'DELETE');broadcastSelected='';await refresh();});
+  function payloadFields(){
+    var kind=el('bc-type').value,container=el('bc-payload');
+    if(kind==='message')container.innerHTML='<label for="bc-msg">Message</label><textarea id="bc-msg" class="fi" rows="4" maxlength="4000"></textarea>';
+    else if(['image','video','voiceNote','document'].includes(kind)){
+      var mime=({image:'image/png',video:'video/mp4',voiceNote:'audio/ogg',document:'application/pdf'})[kind];
+      container.innerHTML='<label for="bc-file">File (max 10 MiB)</label><input type="file" id="bc-file" class="fi"/><label for="bc-mime">MIME type</label><input id="bc-mime" class="fi" value="'+mime+'"/>'+(kind==='voiceNote'?'<p class="cl">Ogg Opus audio required.</p>':'<label for="bc-caption">Caption (optional)</label><textarea id="bc-caption" class="fi" maxlength="1024"></textarea>');
+      el('bc-file').onchange=function(){var file=this.files[0];if(file&&file.type)el('bc-mime').value=file.type.split(';')[0];};
+    }else if(kind==='contact')container.innerHTML='<label for="bc-contact-name">Name</label><input id="bc-contact-name" class="fi"/><label for="bc-contact-phone">International phone</label><input id="bc-contact-phone" class="fi"/>';
+    else if(kind==='location')container.innerHTML='<label for="bc-lat">Latitude</label><input type="number" step="any" id="bc-lat" class="fi"/><label for="bc-lon">Longitude</label><input type="number" step="any" id="bc-lon" class="fi"/><label for="bc-location-name">Name (optional)</label><input id="bc-location-name" class="fi"/>';
+    else container.innerHTML='<label for="bc-question">Poll question</label><input id="bc-question" class="fi" maxlength="255"/><label for="bc-options">Options, one per line</label><textarea id="bc-options" class="fi" rows="4"></textarea><label><input type="checkbox" id="bc-multiple"/> Allow multiple answers</label>';
+  }
+  async function buildPayload(){
+    var kind=el('bc-type').value;
+    if(kind==='message')return {message:el('bc-msg').value};
+    if(kind==='contact')return {contact:{name:el('bc-contact-name').value,phone:el('bc-contact-phone').value}};
+    if(kind==='location'){
+      if(!el('bc-lat').value||!el('bc-lon').value)throw new Error('Enter latitude and longitude');
+      var location={latitude:Number(el('bc-lat').value),longitude:Number(el('bc-lon').value)};
+      if(el('bc-location-name').value.trim())location.name=el('bc-location-name').value;
+      return {location};
+    }
+    if(kind==='poll')return {poll:{question:el('bc-question').value,options:el('bc-options').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),allowMultipleAnswers:el('bc-multiple').checked}};
+    var file=el('bc-file').files[0];if(!file||!file.size||file.size>10*1024*1024)throw new Error('Choose a non-empty file of at most 10 MiB');
+    var data=await new Promise((resolve,reject)=>{var reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('File could not be read'));reader.readAsDataURL(file);});
+    var media={mimetype:el('bc-mime').value.trim(),data,filename:file.name};
+    if(kind!=='voiceNote'&&el('bc-caption').value)media.caption=el('bc-caption').value;
+    return {[kind]:media};
+  }
+  el('bc-type').onchange=payloadFields;payloadFields();
+  var requestId=null,lastPayload=null;
+  el('bc-send').onclick=run(async()=>{
+    if(!broadcastSelected||!el('bc-confirm').checked)throw new Error('Select a list and confirm consent');
+    el('bc-send').disabled=true;
+    try{
+      var listId=broadcastSelected,payload=await buildPayload();
+      if(listId!==broadcastSelected||!el('bc-confirm').checked)throw new Error('List or consent changed; confirm again');
+      var key=JSON.stringify([listId,payload]);
+      if(key!==lastPayload||!requestId){requestId=globalThis.crypto?.randomUUID?.()||('request-'+Date.now()+'-'+Math.random().toString(36).slice(2));lastPayload=key;}
+      var d=await broadcastAPI('/broadcasts/'+listId+'/send','POST',{...payload,requestId,confirmConsent:true});broadcastJob=d._id;el('bc-result').textContent=JSON.stringify(d,null,2);el('bc-confirm').checked=false;requestId=null;}
+    finally{el('bc-send').disabled=false;}
+  });
+  el('bc-job').onclick=run(async()=>{if(!broadcastJob){var h=await broadcastAPI('/broadcasts/jobs');broadcastJob=h.items[0]?._id||'';}if(!broadcastJob)throw new Error('No jobs');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob),null,2);});
+  el('bc-cancel').onclick=run(async()=>{if(!broadcastJob)throw new Error('No selected job');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob+'/cancel','POST'),null,2);});
+  el('bc-opt').onclick=run(async()=>{var d=await broadcastAPI('/broadcasts/opt-out','POST',{phone:el('bc-optout').value});await refresh();el('bc-result').textContent=JSON.stringify(d,null,2);});
+  var refreshPolicy=run(async()=>{var s=await broadcastAPI('/sending/settings');el('bc-settings').textContent='Effective session gap: '+s.intervalMs+' ms | Broadcast gap: '+s.broadcastIntervalMs+' ms\nPending: '+s.pending+' / '+s.maxPending+' | Queue wait: '+s.waitMs+' ms | Active: '+(s.active?'yes':'no');});
+  el('bc-policy').onclick=refreshPolicy;
+  refreshPolicy();run(refresh)();
+}
 function sw(name) {
-  ['logs','playground','webhooks','examples'].forEach(function(n) {
+  ['logs','playground','webhooks','examples','broadcasts'].forEach(function(n) {
     document.getElementById('t-'+n).classList.toggle('on', n===name);
     document.getElementById('p-'+n).classList.toggle('on', n===name);
   });

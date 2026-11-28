@@ -114,6 +114,18 @@
       "key": "voiceNoteBase64",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "broadcastId",
+      "value": ""
+    },
+    {
+      "key": "jobId",
+      "value": ""
+    },
+    {
+      "key": "broadcastRequestId",
+      "value": ""
     }
   ],
   "item": [
@@ -718,6 +730,594 @@
               }
             }
           }
+        },
+        {
+          "name": "Get sending settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/sending/settings",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "List broadcasts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Create broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Customer updates\",\n  \"recipients\": [\n    {\n      \"phone\": \"{{recipient}}\",\n      \"consent\": true,\n      \"consentSource\": \"Recorded customer opt-in\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Broadcast job history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/jobs",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Get broadcast job",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/jobs/{{jobId}}",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Cancel broadcast job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/jobs/{{jobId}}/cancel",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Record broadcast opt-out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/opt-out",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{recipient}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Get broadcast list",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Rename broadcast list",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated customer list\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Delete broadcast list",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}",
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Add broadcast recipients",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/recipients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipients\": [\n    {\n      \"phone\": \"{{recipient}}\",\n      \"consent\": true,\n      \"consentSource\": \"Recorded customer opt-in\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Remove broadcast recipients",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/recipients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phones\": [\n    \"{{recipient}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send text broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Your requested service update is available.\",\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send image broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image\": {\n    \"mimetype\": \"image/jpeg\",\n    \"data\": \"{{imageBase64}}\",\n    \"filename\": \"photo.jpg\",\n    \"caption\": \"Example caption\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send video broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"video\": {\n    \"mimetype\": \"video/mp4\",\n    \"data\": \"{{videoBase64}}\",\n    \"filename\": \"demo.mp4\",\n    \"caption\": \"Example caption\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send voice note broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"voiceNote\": {\n    \"mimetype\": \"audio/ogg\",\n    \"data\": \"{{voiceNoteBase64}}\",\n    \"filename\": \"voice.ogg\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send document broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document\": {\n    \"mimetype\": \"application/pdf\",\n    \"filename\": \"sample.pdf\",\n    \"data\": \"{{documentBase64}}\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send contact broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact\": {\n    \"name\": \"Example Support\",\n    \"phone\": \"+919000000002\",\n    \"organization\": \"Example Company\",\n    \"email\": \"support@example.com\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send location broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": {\n    \"latitude\": 10.0731,\n    \"longitude\": 78.7802,\n    \"name\": \"Example Office\",\n    \"address\": \"Karaikudi, Tamil Nadu\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send single-choice poll broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Choose an option\",\n  \"options\": [\n    \"A\",\n    \"B\"\n  ],\n  \"allowMultipleAnswers\": false,\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send multiple-choice poll broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"poll\": {\n    \"question\": \"Choose products\",\n    \"options\": [\n      \"E360\",\n      \"HireHub\"\n    ],\n    \"allowMultipleAnswers\": true\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
         }
       ]
     },
@@ -826,6 +1426,22 @@
                 }
               }
             }
+          }
+        },
+        {
+          "name": "Get global sending policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/sending-policy"
+          }
+        },
+        {
+          "name": "Get session sending policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/sending-policy"
           }
         }
       ]
@@ -965,6 +1581,87 @@
               }
             },
             "description": "Blocks registration and deletes WPSent authentication data. Do not run against production as a test."
+          }
+        },
+        {
+          "name": "Set global sending policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/sending-policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policy\": {\n    \"intervalMs\": 2000\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
+          }
+        },
+        {
+          "name": "Set session sending policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/sending-policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"override\": {\n    \"intervalMs\": 3000\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
+          }
+        },
+        {
+          "name": "Reset session sending policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-WPSent-Admin",
+                "value": "1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/api/phones/{{targetPhone}}/sending-policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"override\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Set null for unlimited or 0 to stop new registrations."
           }
         }
       ]

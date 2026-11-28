@@ -94,6 +94,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <h3>Group &amp; Webhook APIs</h3>
     <a href="#groups">Group Management</a>
     <a href="#webhooks">Webhooks</a>
+    <a href="#broadcasts">Broadcasts &amp; Sending Settings</a>
     <h3>Guides &amp; Support</h3>
     <a href="#examples">Code Examples</a>
     <a href="#types">Message Types</a>
@@ -398,6 +399,27 @@ x-api-key: YOUR_KEY
 }</pre>
     <p>Reasons: <code>qr_required</code> (actual QR), <code>auth_failure</code> (library reports failed authentication), <code>logged_out</code>, <code>unpaired</code>. The alert also applies if an already registered account requests a manual rescan. It is not triggered by ordinary disconnects, PM2 restart, Puppeteer target errors or readiness retries without auth evidence. Only active subscriptions of this event receive it. Repeated QR refreshes and reconnects are deduplicated across restarts until genuine Ready. GET uses flat query parameters. No QR code, API key or secret is included. Delivery is best effort with the existing webhook timeout; there is no persistent retry queue. Use the existing toggle/delete endpoints to manage each subscription independently.</p>
 
+    <h2 id="broadcasts">Broadcasts &amp; Sending Settings</h2>
+    <p>WPSent-managed broadcast lists, not native WhatsApp lists. Record consent for each recipient; confirm at send time. Opt-out removes and suppresses a number account-wide. Maximum 25 recipients/list, 20 lists/account and 100 reserved recipients per rolling 24 hours. No automatic retry or restart replay.</p>
+    <pre>GET /sending/settings
+GET /broadcasts
+POST /broadcasts
+GET /broadcasts/jobs
+GET /broadcasts/jobs/:jobId
+POST /broadcasts/jobs/:jobId/cancel
+POST /broadcasts/opt-out
+GET /broadcasts/:broadcastId
+PATCH /broadcasts/:broadcastId
+DELETE /broadcasts/:broadcastId
+POST /broadcasts/:broadcastId/recipients
+DELETE /broadcasts/:broadcastId/recipients
+POST /broadcasts/:broadcastId/send</pre>
+    <pre>{"name":"Service updates","recipients":[{"phone":"919000000001","consent":true,"consentSource":"Recorded opt-in"}]}</pre>
+    <pre>{"message":"Your requested update is ready.","requestId":"unique-request-123","confirmConsent":true}</pre>
+    <p>Send returns HTTP 202 and a job ID. Reusing the same requestId with the same list and message returns the existing job. Check results; submitted is not delivered. Cancel stops remaining sends, not in-flight messages. Interrupted jobs are not replayed. History retained 30 days.</p>
+    <p>WA_SEND_INTERVAL_MS (1000 default, 0–5000), WA_SEND_QUEUE_MAX (4 default, 1–8), WA_SEND_QUEUE_WAIT_MS (5000 default, 1000–10000), WA_BROADCAST_INTERVAL_MS (3000 default, 3000–60000) control server-wide serialization, gap after completion, pending queue and additional broadcast spacing. Environment variables seed policy on first startup. Admin console changes global and stricter session policy live, persisted in MongoDB. GET /sending/settings shows effective configuration. Admin APIs: GET/PUT /admin/api/sending-policy and GET/PUT /admin/api/phones/:phone/sending-policy. Broadcast submission has a 90-second deadline; an uncertain send stops the job while the scheduler keeps any still-running native operation active. Pacing covers native sendMessage calls, not inbound/background traffic. Not a bandwidth guarantee or policy bypass.</p>
+    <p>Broadcasts support text, image, video, voice note, document, contact card, location and single/multiple-choice polls. Use the same payload as /send without to, plus requestId and confirmConsent:true. Maximum decoded media 10 MiB; authenticated JSON limit is capped at 15 MiB. Files are held in memory for the job, not stored as Base64 in MongoDB. Each poll has its own message ID. All types use the same sending policy and consent checks.</p>
+    <pre>{"requestId":"product-update-001","confirmConsent":true,"image":{"mimetype":"image/png","data":"YOUR_IMAGE_BASE64","filename":"product.png","caption":"Requested update"}}</pre>
     <h2 id="examples">Code Examples</h2>
     <h3>Node.js</h3>
     <pre>const res = await fetch(
