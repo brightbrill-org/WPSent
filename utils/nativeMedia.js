@@ -33,7 +33,16 @@ function parseNativeMedia(body,query={}){
   const decoded=decodeMedia(data,10*1024*1024);
   if(decoded.status==='too_large')fail('Media exceeds the 10 MiB decoded limit','NATIVE_MEDIA_TOO_LARGE');
   if(!decoded.bytes)fail('Invalid base64 media');
-  if(!signature(decoded.bytes,mime))fail('Media file header does not match supported format (voice notes require Ogg Opus)');
+  if(!signature(decoded.bytes,mime)){
+    const bytes=decoded.bytes;
+    const detected=['image/jpeg','image/png','video/mp4','audio/ogg'].find(format=>signature(bytes,format))
+      || (bytes.toString('ascii',0,6)==='GIF87a'||bytes.toString('ascii',0,6)==='GIF89a'?'image/gif':null)
+      || (bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null);
+    const label=kind==='voiceNote'?'Voice note':kind==='image'?'Image':'Video';
+    const reason=detected?'detected '+detected:'unrecognized or unsupported file header';
+    const supported=kind==='voiceNote'?'Voice notes require Ogg Opus encoded audio.':kind==='image'?'Supported image formats: image/jpeg, image/png.':'Supported video format: video/mp4.';
+    fail(label+' format mismatch: declared '+mime+', '+reason+'. '+supported);
+  }
   if(own(input,'filename')&&(typeof input.filename!=='string'||!input.filename.trim()||input.filename.length>120||/[\x00-\x1f\x7f\\/]/.test(input.filename)||['.','..'].includes(input.filename.trim())))fail('filename must be a safe file name of at most 120 characters');
   const ext=formats[kind][mime],file=own(input,'filename')?filename(input.filename,kind+'.'+ext):kind+'.'+ext;
   let caption='';

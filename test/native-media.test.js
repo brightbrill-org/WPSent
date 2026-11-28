@@ -41,3 +41,10 @@ test('inbound voice note MIME parameters normalized and generated filename has e
   assert.equal(result.mediaStatus,'available');assert.equal(result.mediaMimetype,'audio/ogg');
   assert.match(result.mediaFilename,/\.ogg$/);assert.equal(rows[0].userId,'owner');
 });
+
+test('media header errors identify declared and detected formats with type-specific guidance',()=>{
+  assert.throws(()=>parseNativeMedia({image:{mimetype:'image/jpeg',data:png}}),e=>e.code==='INVALID_NATIVE_MEDIA'&&e.message.includes('declared image/jpeg, detected image/png')&&!e.message.includes('Ogg'));
+  assert.throws(()=>parseNativeMedia({video:{mimetype:'video/mp4',data:jpeg}}),e=>e.message.includes('declared video/mp4, detected image/jpeg')&&!e.message.includes('Ogg'));
+  assert.throws(()=>parseNativeMedia({voiceNote:{mimetype:'audio/ogg',data:jpeg}}),e=>e.message.includes('declared audio/ogg, detected image/jpeg')&&e.message.includes('Ogg Opus'));
+  assert.throws(()=>parseNativeMedia({image:{mimetype:'image/jpeg',data:'AAAA'}}),e=>e.message.includes('unrecognized or unsupported file header'));
+});

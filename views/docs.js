@@ -212,7 +212,7 @@ npm start              # visit http://localhost:3000</pre>
   "mimetype": "audio/ogg", "data": "BASE64_OGG_OPUS",
   "filename": "voice.ogg"
 }}</pre>
-    <p>Outgoing formats: JPEG/PNG, MP4 (WhatsApp-compatible codecs such as H.264/AAC), Ogg Opus. Standard padded base64 or matching data URL. Header checks are not full codec validation; no transcoding. Filename optional; image/video caption optional (1024 characters); no voice captions. Decoded limit 10 MiB, subject to the existing JSON request limit. Native inline media, not documents. Ready session required; one media send per account, two globally, 90-second deadline. No automatic retries.</p>
+    <p>Outgoing formats: JPEG/PNG, MP4 (WhatsApp-compatible codecs such as H.264/AAC), Ogg Opus. Standard padded base64 or matching data URL. Header checks are not full codec validation; no transcoding. Format mismatch errors identify the declared MIME type and detected file header when recognized, with guidance specific to the requested media type. Filename optional; image/video caption optional (1024 characters); no voice captions. Decoded limit 10 MiB, subject to the existing JSON request limit. Native inline media, not documents. Ready session required; one media send per account, two globally, 90-second deadline. No automatic retries.</p>
     <pre>{ "ok": true, "chatId": "919000000001@c.us",
   "messageId": "true_919000000001@c.us_EXAMPLE456",
   "type": "voice_note", "logId": "64f3a1234567890123456789" }</pre>
