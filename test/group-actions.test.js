@@ -172,3 +172,26 @@ test('description adapter does not retry an explicitly rejected update',async()=
   await assert.rejects(run(phone,'description',req('description',{description:'New'})),{code:'WA_GROUP_FAILED'});
   assert.equal(calls,1);
 });
+
+test('invite retrieval loads missing bundle, then uses native query without resetting link',async()=>{
+  let loaded=false,loads=0,queries=0;
+  const {run}=fixture({getInviteCode:async()=>{assert.equal(loaded,true);queries++;return 'EXAMPLE_CODE123';},revokeInvite:()=>assert.fail('must not reset link')},{
+    pupPage:{evaluate:async fn=>{
+      const previous=global.window;
+      global.window={require:name=>name==='WAWebMexFetchGroupInviteCodeJob'?(loaded?{fetchMexGroupInviteCode(){}}:undefined):name==='WAWebGroupInviteLinkDrawerLoadable'?{requireBundle:async()=>{loads++;loaded=true;}}:undefined};
+      try{return await fn();}finally{if(previous===undefined)delete global.window;else global.window=previous;}
+    }}
+  });
+  for(let i=0;i<2;i++)assert.equal((await run(phone,'invite',req('invite'))).inviteLink,'https://chat.whatsapp.com/EXAMPLE_CODE123');
+  assert.equal(loads,1);assert.equal(queries,2);
+});
+test('invite preflight rejects unavailable bundle before native query',async()=>{
+  const {run}=fixture({getInviteCode:()=>assert.fail('must not query')},{pupPage:{evaluate:async()=> 'loader_unavailable'}});
+  await assert.rejects(run(phone,'invite',req('invite')),e=>e.code==='WA_GROUP_UNAVAILABLE'&&e.message.includes('loader_unavailable'));
+});
+test('invite native failures return explicit errors without leaking invite data',async()=>{
+  const {run,group}=fixture({getInviteCode:async()=>{throw Error('private invite data');}});
+  await assert.rejects(run(phone,'invite',req('invite')),e=>e.code==='WA_GROUP_FAILED'&&!e.message.includes('private invite data'));
+  group.getInviteCode=async()=>{throw Error('Protocol error: Target closed');};
+  await assert.rejects(run(phone,'invite',req('invite')),{code:'WA_GROUP_UNAVAILABLE'});
+});

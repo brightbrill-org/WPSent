@@ -171,6 +171,28 @@ async function updateDescription(client,group,id,description,guard){
   if(result==='metadata_unavailable'||result==='key_unavailable')fail('WhatsApp group description prerequisites unavailable ('+result+')','WA_GROUP_UNAVAILABLE');
   return result==='updated';
 }
+// WhatsApp Web lazily loads its invite-code query when the invite drawer
+// opens (upstream wwebjs issue #201916). Prepare it before calling the
+// public native method; never reset or regenerate an invite code.
+async function prepareGroupInvite(client,guard){
+  if(!client.pupPage||typeof client.pupPage.evaluate!=='function')return;
+  guard();
+  const stage=await client.pupPage.evaluate(async()=>{
+    const get=name=>{try{return window.require(name);}catch(_){return null;}};
+    const ready=()=>typeof get('WAWebMexFetchGroupInviteCodeJob')?.fetchMexGroupInviteCode==='function';
+    if(ready())return 'ready';
+    const loader=get('WAWebGroupInviteLinkDrawerLoadable');
+    if(typeof loader?.requireBundle!=='function')return 'loader_unavailable';
+    try{await loader.requireBundle();}catch(_){if(!ready())return 'load_failed';}
+    return ready()?'ready':'job_unavailable';
+  });
+  guard();
+  if(stage!=='ready'){
+    const reason=['loader_unavailable','load_failed','job_unavailable'].includes(stage)?stage:'unexpected_preparation_result';
+    console.warn('[WA] Group invite preflight:',reason);
+    fail('WhatsApp group invite module unavailable ('+reason+')','WA_GROUP_UNAVAILABLE');
+  }
+}
 function createdGroupId(raw){
   const gid=raw?.gid;
   const serialized=wid(gid);
@@ -276,7 +298,20 @@ function createGroupActions({getSession,isBlocked,timeoutMs=45000,maxActive=4}){
         return {...result,[key]:request[key]};
       }
       if(action==='invite'){
-        const code=await group.getInviteCode();
+        let code;
+        try{
+          await prepareGroupInvite(client,guard);
+          guard();
+          if(typeof group.getInviteCode!=='function')fail('WhatsApp group invite method unavailable','WA_GROUP_UNAVAILABLE');
+          code=await group.getInviteCode();
+        }catch(e){
+          if(['WA_GROUP_UNAVAILABLE','WA_GROUP_TIMEOUT','WA_NOT_READY'].includes(e?.code))throw e;
+          // Log a category only; errors may include sensitive invite data.
+          const detail=String(e?.message||'');
+          const interrupted=/Target closed|Session closed|detached Frame|Execution context was destroyed|Protocol error/i.test(detail);
+          console.warn('[WA] Group invite retrieval failed:',interrupted?'browser_connection_interrupted':'native_query_failed');
+          fail(interrupted?'WhatsApp connection interrupted during group invite retrieval':'WhatsApp group invite retrieval failed; check server logs',interrupted?'WA_GROUP_UNAVAILABLE':'WA_GROUP_FAILED');
+        }
         if(typeof code!=='string'||!/^[A-Za-z0-9_-]{8,128}$/.test(code))fail('WhatsApp did not return an invite code','WA_GROUP_FAILED');
         guard();
         return {...result,inviteCode:code,inviteLink:'https://chat.whatsapp.com/'+code};
