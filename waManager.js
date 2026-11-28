@@ -614,7 +614,19 @@ async function sendMessage(phone, to, body, shareType) {
 async function sendBroadcastText(phone,to,message,preflight){
   const session=sessions.get(phone);
   if(!session||session.status!=='ready'||shuttingDown||isPhoneBlocked(phone))throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});
-  const sent=await session.client.sendMessage(to+'@c.us',message,{waitUntilMsgSent:true,parseVCards:false,sendSeen:false},preflight);
+  let expired=false;
+  const guard=async()=>{
+    if(expired)throw Object.assign(new Error('Broadcast send deadline expired before dispatch'),{code:'WA_BROADCAST_STOPPED'});
+    if(preflight)await preflight();
+    if(expired)throw Object.assign(new Error('Broadcast send deadline expired before dispatch'),{code:'WA_BROADCAST_STOPPED'});
+  };
+  let sent;
+  try{
+    sent=await deadline(()=>session.client.sendMessage(to+'@c.us',message,{waitUntilMsgSent:true,parseVCards:false,sendSeen:false},guard),90000,'WhatsApp broadcast submission');
+  }catch(e){
+    if(e.code==='WA_READY_TIMEOUT'){expired=true;throw Object.assign(new Error('Broadcast submission timed out; verify before retrying'),{code:'WA_BROADCAST_TIMEOUT'});}
+    throw e;
+  }
   const messageId=messageIdOf(sent);
   if(!messageId||sent.type!=='chat')throw new Error('Broadcast submission unconfirmed');
   return {messageId};
