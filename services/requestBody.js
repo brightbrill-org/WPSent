@@ -15,6 +15,7 @@ function registerRequestBodyParsers(app, requireKey, raw = process.env.WA_SEND_J
   // The /send router checks the key again before dispatch, including revocation.
   // Matching the actual POST route avoids increasing the admin/other API limits.
   app.post('/send', requireKey, express.json({ limit }));
+  app.post('/broadcasts/:id/send', requireKey, express.json({ limit: Math.min(limit,15*1024*1024) }));
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 }

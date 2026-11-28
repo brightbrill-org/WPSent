@@ -16,6 +16,7 @@ async function withServer(run) {
   registerRequestBodyParsers(app, auth, '1');
   const echo = (req,res) => res.json({ size: req.body?.document?.data?.length || 0, message: req.body?.message || null });
   app.post('/send', echo);
+  app.post('/broadcasts/:id/send', echo);
   app.post('/admin/api/example', echo);
   app.use((err,req,res,next) => res.status(err.status || 500).json({error:err.message}));
   const server = await new Promise(resolve => {
@@ -68,4 +69,13 @@ test('unauthenticated large send is rejected before body parsing',async()=>{
     const res=await request('/send',media(192*1024),{key:null});
     assert.equal(res.status,401);
   });
+});
+
+test('broadcast uploads authenticate before buffering and retain configured JSON cap',async()=>{
+ await withServer(async request=>{
+   const path='/broadcasts/example/send';
+   assert.equal((await request(path,media(192*1024))).status,200);
+   assert.equal((await request(path,media(192*1024),{key:null})).status,401);
+   assert.equal((await request(path,media(900*1024))).status,413);
+ });
 });

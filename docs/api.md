@@ -621,7 +621,7 @@ Open the signed-in dashboard and select Examples. Choose an API operation and cU
 
 ## Broadcast lists and outbound pacing
 
-WPSent-managed lists are separate from native WhatsApp broadcast lists. Text-only, consented notifications; no group recipients, no scraping or automatic retries. Record explicit consent for each recipient (phone, consent:true, consentSource) and confirm at send time. Record opt-outs using POST /broadcasts/opt-out; account-wide suppression is permanent via this API and removes the number from all lists. Opt-outs, list membership and account state are checked again immediately before dispatch. Maximum 20 lists/account, 25 recipients/list or job, 100 reserved recipient slots per rolling 24 hours, one job per account and two globally. These are resource/consent safeguards, not WhatsApp-approved sending limits. Use official WhatsApp Business tools for large-scale messaging.
+WPSent-managed lists are separate from native WhatsApp broadcast lists. Consented notifications; no group recipients, no scraping or automatic retries. Record explicit consent for each recipient (phone, consent:true, consentSource) and confirm at send time. Record opt-outs using POST /broadcasts/opt-out; account-wide suppression is permanent via this API and removes the number from all lists. Opt-outs, list membership and account state are checked again immediately before dispatch. Maximum 20 lists/account, 25 recipients/list or job, 100 reserved recipient slots per rolling 24 hours, one job per account and two globally. These are resource/consent safeguards, not WhatsApp-approved sending limits. Use official WhatsApp Business tools for large-scale messaging.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -641,7 +641,7 @@ WPSent-managed lists are separate from native WhatsApp broadcast lists. Text-onl
 
 Create: `POST /broadcasts`, body `{"name":"Service updates","recipients":[{"phone":"919000000001","consent":true,"consentSource":"Customer opt-in record 123"}]}`. PATCH supports name and/or replacement recipients; add accepts recipients array, remove accepts phones array. International numbers with country code only. DELETE removes list, not job history.
 
-Send: `POST /broadcasts/:id/send`, body `{"message":"Your requested update is ready.","requestId":"unique-request-123","confirmConsent":true}`. HTTP 202 returns job ID and initial recipient states. Repeat the same requestId for the same list/message to retrieve existing job, not resubmit. Job history retained 30 days. GET /broadcasts/jobs/:jobId returns pending/sending/submitted/not_sent/unknown. Submitted means native message ID returned, NOT delivered/read. On error stop remaining recipients; an uncertain send is unknown, never retried automatically. Cancellation stops remaining sends, cannot recall a dispatched message. Restart marks active jobs interrupted (in-flight unknown, pending not_sent), never replays. Jobs run in the server process, no external worker required. All operations require API headers and are account scoped.
+Send (text example): `POST /broadcasts/:id/send`, body `{"message":"Your requested update is ready.","requestId":"unique-request-123","confirmConsent":true}`. HTTP 202 returns job ID and initial recipient states. Repeat the same requestId for the same list/message to retrieve existing job, not resubmit. Job history retained 30 days. GET /broadcasts/jobs/:jobId returns pending/sending/submitted/not_sent/unknown. Submitted means native message ID returned, NOT delivered/read. On error stop remaining recipients; an uncertain send is unknown, never retried automatically. Cancellation stops remaining sends, cannot recall a dispatched message. Restart marks active jobs interrupted (in-flight unknown, pending not_sent), never replays. Jobs run in the server process, no external worker required. All operations require API headers and are account scoped.
 
 ### Outbound pacing (server-wide)
 
@@ -654,7 +654,7 @@ Send: `POST /broadcasts/:id/send`, body `{"message":"Your requested update is re
 
 One native client.sendMessage operation at a time across all linked accounts, with a fixed gap AFTER completion. Applies to text, documents, contact/location, native media, poll creation and quoted replies. Not inbound traffic, reads, group management, vote mutations or browser/background traffic. It smooths application dispatch, not a bandwidth guarantee or a way to bypass WhatsApp restrictions. A full/expired queue returns 503 where exposed; no dispatch occurred for that queued request. Existing action timeouts can still leave a dispatched send uncertain. Environment variables seed initial policy; administrator changes apply live; GET /sending/settings shows effective values and current queue status. Zero interval retains serialization. Single PM2 fork only.
 
-Dashboard Broadcasts tab supports list creation/edit/delete, pasted numbers, explicit consent confirmation, text job submission, latest job status/cancel and opt-out. Direct contact selection and full CSV parsing, media broadcasts, durable replay and delivery receipts are not included.
+Dashboard Broadcasts tab supports list creation/edit/delete, pasted numbers, explicit consent confirmation, message job submission, latest job status/cancel and opt-out. Direct contact selection and full CSV parsing, durable replay and delivery receipts are not included.
 
 Broadcast submission has a 90-second response deadline. If the deadline expires, the job stops and records the current recipient as unknown; the underlying native operation may still be running, so the global scheduler retains its slot until that operation settles. The dashboard shows the effective sending policy read-only. Consent/opt-out checks run again before native dispatch, but cannot recall an already dispatched message.
 
@@ -678,3 +678,14 @@ The environment variables seed the global policy on first startup. MongoDB persi
 One native send globally, one active broadcast per phone and no automatic retries are fixed. Global active jobs and retention are global-only. Session fields are intervalMs, maxPending, waitMs, broadcastIntervalMs, maxLists, maxRecipients, dailyRecipients, submissionTimeoutMs.
 
 Admin API: GET/PUT /admin/api/sending-policy (PUT {"policy":{"intervalMs":2000}}); GET/PUT /admin/api/phones/:phone/sending-policy (PUT {"override":{"intervalMs":3000}}, or {"override":null} to inherit). Mutations require active administrator cookie, JSON and X-WPSent-Admin: 1. User GET /sending/settings exposes effective own session settings and global queue totals, not other phones' policies.
+
+### Broadcast message formats
+
+POST /broadcasts/:id/send accepts exactly one of message, image, video, voiceNote, document, contact, location or poll (legacy top-level question/options also supported). Use the same native media, contact/location and poll fields as POST /send, without to; recipients come exclusively from the saved consented list. Include requestId and confirmConsent:true. Text remains limited to 4000 characters; each file is limited to 10 MiB decoded, with canonical base64 and MIME checks for native formats, safe filename and optional captions (not voice notes). Documents are sent as documents. Broadcast JSON is authenticated before parsing and capped at min(WA_SEND_JSON_LIMIT_MB,15 MiB); reverse proxies may impose a lower limit. One in-memory payload per active job, no Base64 persisted in job records or message logs, no automatic restart replay. Polls are independently created for each recipient and their message IDs appear in job results; existing poll results API works per poll ID, not as a combined broadcast tally.
+
+Example:
+```json
+{"requestId":"product-update-001","confirmConsent":true,"image":{"mimetype":"image/png","data":"YOUR_IMAGE_BASE64","filename":"product.png","caption":"Requested product update"}}
+```
+
+All formats use the existing global and session pacing, consent/opt-out checks and cancellation. Job type and individual native message IDs are tracked; submitted is not delivered. The dashboard supports file selection, MIME and caption, contact/location fields and single/multiple-choice polls. A full contact picker and CSV import remain out of scope.

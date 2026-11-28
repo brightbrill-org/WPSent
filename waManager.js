@@ -613,7 +613,7 @@ async function sendMessage(phone, to, body, shareType) {
   }
 }
 
-async function sendBroadcastText(phone,to,message,preflight){
+async function sendBroadcastPayload(phone,to,payload,preflight){
   const session=sessions.get(phone);
   if(!session||session.status!=='ready'||shuttingDown||isPhoneBlocked(phone))throw Object.assign(new Error('WhatsApp session not ready'),{code:'WA_NOT_READY'});
   let expired=false;
@@ -622,15 +622,17 @@ async function sendBroadcastText(phone,to,message,preflight){
     if(preflight)await preflight();
     if(expired)throw Object.assign(new Error('Broadcast send deadline expired before dispatch'),{code:'WA_BROADCAST_STOPPED'});
   };
+  const {materialize}=require('./utils/broadcastPayload');
+  const prepared=materialize(payload,require('whatsapp-web.js'));
   let sent;
   try{
-    sent=await deadline(()=>session.client.sendMessage(to+'@c.us',message,{waitUntilMsgSent:true,parseVCards:false,sendSeen:false},guard),sendingPolicy.session(phone).effective.submissionTimeoutMs,'WhatsApp broadcast submission');
+    sent=await deadline(()=>session.client.sendMessage(to+'@c.us',prepared.payload,prepared.options,guard),sendingPolicy.session(phone).effective.submissionTimeoutMs,'WhatsApp broadcast submission');
   }catch(e){
     if(e.code==='WA_READY_TIMEOUT'){expired=true;throw Object.assign(new Error('Broadcast submission timed out; verify before retrying'),{code:'WA_BROADCAST_TIMEOUT'});}
     throw e;
   }
   const messageId=messageIdOf(sent);
-  if(!messageId||sent.type!=='chat')throw new Error('Broadcast submission unconfirmed');
+  if(!messageId||sent.type!==payload.expected)throw new Error('Broadcast submission unconfirmed');
   return {messageId};
 }
 function outboundSettings(phone){const session=sendingPolicy.session(phone);return {...outboundPacer.state(phone),...session.effective,broadcastMaxRecipients:session.effective.maxRecipients,broadcastDailyRecipients:session.effective.dailyRecipients,global:sendingPolicy.global(),session};}
@@ -680,6 +682,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, sendNativeMedia, sendBroadcastText, outboundSettings, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
+  onQR, offQR, sendMessage, sendNativeMedia, sendBroadcastPayload, outboundSettings, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

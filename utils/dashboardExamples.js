@@ -433,6 +433,134 @@ const EXAMPLES=[
     "requestId": "{{broadcastRequestId}}",
     "confirmConsent": true
   }
+},
+{
+  "name": "Send image broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "image": {
+      "mimetype": "image/jpeg",
+      "data": "{{imageBase64}}",
+      "filename": "photo.jpg",
+      "caption": "Example caption"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send video broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "video": {
+      "mimetype": "video/mp4",
+      "data": "{{videoBase64}}",
+      "filename": "demo.mp4",
+      "caption": "Example caption"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send voice note broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "voiceNote": {
+      "mimetype": "audio/ogg",
+      "data": "{{voiceNoteBase64}}",
+      "filename": "voice.ogg"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send document broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "document": {
+      "mimetype": "application/pdf",
+      "filename": "sample.pdf",
+      "data": "{{documentBase64}}"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send contact broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "contact": {
+      "name": "Example Support",
+      "phone": "+919000000002",
+      "organization": "Example Company",
+      "email": "support@example.com"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send location broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "location": {
+      "latitude": 10.0731,
+      "longitude": 78.7802,
+      "name": "Example Office",
+      "address": "Karaikudi, Tamil Nadu"
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send single-choice poll broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "question": "Choose an option",
+    "options": [
+      "A",
+      "B"
+    ],
+    "allowMultipleAnswers": false,
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
+},
+{
+  "name": "Send multiple-choice poll broadcast",
+  "group": "Broadcasts and sending",
+  "method": "POST",
+  "path": "/broadcasts/{{broadcastId}}/send",
+  "body": {
+    "poll": {
+      "question": "Choose products",
+      "options": [
+        "E360",
+        "HireHub"
+      ],
+      "allowMultipleAnswers": true
+    },
+    "requestId": "{{broadcastRequestId}}",
+    "confirmConsent": true
+  }
 }
 ];
 

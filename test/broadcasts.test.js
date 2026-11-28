@@ -10,9 +10,9 @@ test('broadcast recipients require consent source, unique international phone an
   assert.throws(()=>v.recipients([x,x]),{status:400});
   assert.throws(()=>v.phone('123@g.us'),{status:400});
 });
-test('broadcast send requires consent confirmation and request id, only text',()=>{
+test('broadcast send requires consent confirmation and request id, rejects mixed types',()=>{
   const b={message:'Update',requestId:'request-123',confirmConsent:true};
-  assert.deepEqual(v.job(b),{message:'Update',requestId:'request-123'});
+  assert.equal(v.job(b).payload.message,'Update');assert.equal(v.job(b).requestId,'request-123');
   for(const x of [{...b,confirmConsent:false},{...b,image:{}},{...b,requestId:''}])assert.throws(()=>v.job(x),{status:400});
 });
 test('pacer serializes dispatch and waits after completion',async()=>{

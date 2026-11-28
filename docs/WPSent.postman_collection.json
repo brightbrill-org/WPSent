@@ -1070,6 +1070,254 @@
             },
             "description": "Sends a real WhatsApp message."
           }
+        },
+        {
+          "name": "Send image broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image\": {\n    \"mimetype\": \"image/jpeg\",\n    \"data\": \"{{imageBase64}}\",\n    \"filename\": \"photo.jpg\",\n    \"caption\": \"Example caption\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send video broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"video\": {\n    \"mimetype\": \"video/mp4\",\n    \"data\": \"{{videoBase64}}\",\n    \"filename\": \"demo.mp4\",\n    \"caption\": \"Example caption\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send voice note broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"voiceNote\": {\n    \"mimetype\": \"audio/ogg\",\n    \"data\": \"{{voiceNoteBase64}}\",\n    \"filename\": \"voice.ogg\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send document broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document\": {\n    \"mimetype\": \"application/pdf\",\n    \"filename\": \"sample.pdf\",\n    \"data\": \"{{documentBase64}}\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send contact broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact\": {\n    \"name\": \"Example Support\",\n    \"phone\": \"+919000000002\",\n    \"organization\": \"Example Company\",\n    \"email\": \"support@example.com\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send location broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": {\n    \"latitude\": 10.0731,\n    \"longitude\": 78.7802,\n    \"name\": \"Example Office\",\n    \"address\": \"Karaikudi, Tamil Nadu\"\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send single-choice poll broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Choose an option\",\n  \"options\": [\n    \"A\",\n    \"B\"\n  ],\n  \"allowMultipleAnswers\": false,\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Send multiple-choice poll broadcast",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/broadcasts/{{broadcastId}}/send",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"poll\": {\n    \"question\": \"Choose products\",\n    \"options\": [\n      \"E360\",\n      \"HireHub\"\n    ],\n    \"allowMultipleAnswers\": true\n  },\n  \"requestId\": \"{{broadcastRequestId}}\",\n  \"confirmConsent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
         }
       ]
     },

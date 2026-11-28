@@ -504,7 +504,7 @@ async function broadcastAPI(path,method,body){
 }
 function renderBroadcasts(){
   var panel=document.getElementById('p-broadcasts');
-  panel.innerHTML='<div class="card"><div class="ct">Broadcast lists — consented text notifications</div>'+
+  panel.innerHTML='<div class="card"><div class="ct">Broadcast lists — consented notifications</div>'+
     '<p style="font-size:12px;color:var(--muted);margin-bottom:12px">WPSent lists are not native WhatsApp lists. Add only recipients with recorded consent; maximum 25 per list. No automatic retry.</p>'+
     '<div class="cl">Server sending policy (read-only)</div><pre class="pr" id="bc-settings"></pre><button class="btn btn-g btn-s" id="bc-policy">Refresh sending policy</button>'+
     '<p style="font-size:12px;color:var(--muted);margin:8px 0 14px">Server administrator can update global and phone-specific sending policy in the Admin console. Changes apply without restart.</p>'+
@@ -516,7 +516,8 @@ function renderBroadcasts(){
     '<label style="display:block;margin:10px 0"><input type="checkbox" id="bc-consent"/> I have recorded consent from every recipient.</label>'+
     '<button class="btn btn-g" id="bc-save">Save list</button>'+
     '<hr style="border:0;border-top:1px solid var(--border);margin:16px 0"/>'+
-    '<label for="bc-msg">Text message</label><textarea id="bc-msg" class="fi" rows="4" maxlength="4000"></textarea>'+
+    '<label for="bc-type">Message type</label><select id="bc-type" class="fi"><option value="message">Text</option><option value="image">Image</option><option value="video">Video</option><option value="voiceNote">Voice note</option><option value="document">Document</option><option value="contact">Contact card</option><option value="location">Location</option><option value="poll">Poll</option></select>'+
+    '<div id="bc-payload"></div>'+
     '<label style="display:block;margin:10px 0"><input type="checkbox" id="bc-confirm"/> Confirm recipients still consent to this message.</label>'+
     '<div class="row"><button class="btn" id="bc-send">Submit broadcast</button><button class="btn btn-g" id="bc-job">Refresh job</button><button class="btn btn-d" id="bc-cancel">Cancel remaining sends</button></div>'+
     '<label for="bc-optout" style="display:block;margin-top:14px">Record account-wide broadcast opt-out</label><input class="fi" id="bc-optout" placeholder="International phone number"/><button class="btn btn-g" id="bc-opt">Record opt-out</button>'+
@@ -545,13 +546,45 @@ function renderBroadcasts(){
     broadcastSelected=row._id;await refresh();el('bc-result').textContent='List saved';
   });
   el('bc-delete').onclick=run(async()=>{if(!broadcastSelected||!window.confirm('Delete selected broadcast list?'))return;await broadcastAPI('/broadcasts/'+broadcastSelected,'DELETE');broadcastSelected='';await refresh();});
+  function payloadFields(){
+    var kind=el('bc-type').value,container=el('bc-payload');
+    if(kind==='message')container.innerHTML='<label for="bc-msg">Message</label><textarea id="bc-msg" class="fi" rows="4" maxlength="4000"></textarea>';
+    else if(['image','video','voiceNote','document'].includes(kind)){
+      var mime=({image:'image/png',video:'video/mp4',voiceNote:'audio/ogg',document:'application/pdf'})[kind];
+      container.innerHTML='<label for="bc-file">File (max 10 MiB)</label><input type="file" id="bc-file" class="fi"/><label for="bc-mime">MIME type</label><input id="bc-mime" class="fi" value="'+mime+'"/>'+(kind==='voiceNote'?'<p class="cl">Ogg Opus audio required.</p>':'<label for="bc-caption">Caption (optional)</label><textarea id="bc-caption" class="fi" maxlength="1024"></textarea>');
+      el('bc-file').onchange=function(){var file=this.files[0];if(file&&file.type)el('bc-mime').value=file.type.split(';')[0];};
+    }else if(kind==='contact')container.innerHTML='<label for="bc-contact-name">Name</label><input id="bc-contact-name" class="fi"/><label for="bc-contact-phone">International phone</label><input id="bc-contact-phone" class="fi"/>';
+    else if(kind==='location')container.innerHTML='<label for="bc-lat">Latitude</label><input type="number" step="any" id="bc-lat" class="fi"/><label for="bc-lon">Longitude</label><input type="number" step="any" id="bc-lon" class="fi"/><label for="bc-location-name">Name (optional)</label><input id="bc-location-name" class="fi"/>';
+    else container.innerHTML='<label for="bc-question">Poll question</label><input id="bc-question" class="fi" maxlength="255"/><label for="bc-options">Options, one per line</label><textarea id="bc-options" class="fi" rows="4"></textarea><label><input type="checkbox" id="bc-multiple"/> Allow multiple answers</label>';
+  }
+  async function buildPayload(){
+    var kind=el('bc-type').value;
+    if(kind==='message')return {message:el('bc-msg').value};
+    if(kind==='contact')return {contact:{name:el('bc-contact-name').value,phone:el('bc-contact-phone').value}};
+    if(kind==='location'){
+      if(!el('bc-lat').value||!el('bc-lon').value)throw new Error('Enter latitude and longitude');
+      var location={latitude:Number(el('bc-lat').value),longitude:Number(el('bc-lon').value)};
+      if(el('bc-location-name').value.trim())location.name=el('bc-location-name').value;
+      return {location};
+    }
+    if(kind==='poll')return {poll:{question:el('bc-question').value,options:el('bc-options').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),allowMultipleAnswers:el('bc-multiple').checked}};
+    var file=el('bc-file').files[0];if(!file||!file.size||file.size>10*1024*1024)throw new Error('Choose a non-empty file of at most 10 MiB');
+    var data=await new Promise((resolve,reject)=>{var reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('File could not be read'));reader.readAsDataURL(file);});
+    var media={mimetype:el('bc-mime').value.trim(),data,filename:file.name};
+    if(kind!=='voiceNote'&&el('bc-caption').value)media.caption=el('bc-caption').value;
+    return {[kind]:media};
+  }
+  el('bc-type').onchange=payloadFields;payloadFields();
   var requestId=null,lastPayload=null;
   el('bc-send').onclick=run(async()=>{
     if(!broadcastSelected||!el('bc-confirm').checked)throw new Error('Select a list and confirm consent');
-    var message=el('bc-msg').value, key=JSON.stringify([broadcastSelected,message]);
-    if(key!==lastPayload||!requestId){requestId=globalThis.crypto?.randomUUID?.()||('request-'+Date.now()+'-'+Math.random().toString(36).slice(2));lastPayload=key;}
     el('bc-send').disabled=true;
-    try{var d=await broadcastAPI('/broadcasts/'+broadcastSelected+'/send','POST',{message,requestId,confirmConsent:true});broadcastJob=d._id;el('bc-result').textContent=JSON.stringify(d,null,2);el('bc-confirm').checked=false;requestId=null;}
+    try{
+      var listId=broadcastSelected,payload=await buildPayload();
+      if(listId!==broadcastSelected||!el('bc-confirm').checked)throw new Error('List or consent changed; confirm again');
+      var key=JSON.stringify([listId,payload]);
+      if(key!==lastPayload||!requestId){requestId=globalThis.crypto?.randomUUID?.()||('request-'+Date.now()+'-'+Math.random().toString(36).slice(2));lastPayload=key;}
+      var d=await broadcastAPI('/broadcasts/'+listId+'/send','POST',{...payload,requestId,confirmConsent:true});broadcastJob=d._id;el('bc-result').textContent=JSON.stringify(d,null,2);el('bc-confirm').checked=false;requestId=null;}
     finally{el('bc-send').disabled=false;}
   });
   el('bc-job').onclick=run(async()=>{if(!broadcastJob){var h=await broadcastAPI('/broadcasts/jobs');broadcastJob=h.items[0]?._id||'';}if(!broadcastJob)throw new Error('No jobs');el('bc-result').textContent=JSON.stringify(await broadcastAPI('/broadcasts/jobs/'+broadcastJob),null,2);});

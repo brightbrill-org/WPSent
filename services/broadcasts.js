@@ -3,6 +3,7 @@ const mongoose=require('mongoose');
 const {randomUUID,createHash}=require('crypto');
 const {withControlLock}=require('./controlLock');
 const v=require('../utils/broadcastValidation');
+const {logFields}=require('../utils/broadcastPayload');
 const wa=require('../waManager');
 const {WpUser,MessageLog}=require('../routes/modelAccess');
 const db=name=>mongoose.connection.db.collection('wpsent_'+name);
@@ -72,7 +73,7 @@ async function allowed(user,row,phone){
   const list=await lists().findOne({_id:row.listId,owner:owner(user),'recipients.phone':phone},{projection:{_id:1}});
   return !!list&&!stopping&&!wa.isPhoneBlocked(user.phone);
 }
-async function run(user,row,message){
+async function run(user,row,payload){
   let final='completed';
   try{
     await jobs().updateOne({_id:row._id},{$set:{status:'running',startedAt:date()}});
@@ -83,7 +84,7 @@ async function run(user,row,message){
       await record(row._id,i,'sending');
       let sent;
       try{
-        sent=await wa.sendBroadcastText(user.phone,phone,message,async()=>{if(!await allowed(user,row,phone))throw Object.assign(new Error('Broadcast consent or session no longer valid'),{code:'WA_BROADCAST_STOPPED'});});
+        sent=await wa.sendBroadcastPayload(user.phone,phone,payload,async()=>{if(!await allowed(user,row,phone))throw Object.assign(new Error('Broadcast consent or session no longer valid'),{code:'WA_BROADCAST_STOPPED'});});
       }catch(e){
         const before=['WA_SEND_BUSY','WA_SEND_QUEUE_TIMEOUT','WA_SEND_STOPPED','WA_NOT_READY','WA_BROADCAST_STOPPED'].includes(e.code);
         await record(row._id,i,before?'not_sent':'unknown',{reason:before?'not_dispatched':'send_not_confirmed'});
@@ -91,7 +92,7 @@ async function run(user,row,message){
       }
       // A returned native message ID confirms submission, not delivery/read.
       await record(row._id,i,'submitted',{messageId:sent.messageId});
-      try{const log=await MessageLog.create({userId:user._id,direction:'outbound',to:phone+'@c.us',chatId:phone+'@c.us',messageId:sent.messageId,type:'text',body:message,status:'sent'});await wa.pruneOldLogs(user._id);wa.emitLog(owner(user),log.toObject());}catch(e){console.warn('[Broadcast] Message log unavailable');}
+      try{const log=await MessageLog.create({userId:user._id,direction:'outbound',to:phone+'@c.us',chatId:phone+'@c.us',messageId:sent.messageId,...logFields(payload),status:'sent'});await wa.pruneOldLogs(user._id);wa.emitLog(owner(user),log.toObject());}catch(e){console.warn('[Broadcast] Message log unavailable');}
     }
   }catch(e){final='interrupted';console.warn('[Broadcast] Job interrupted');}
   finally{
@@ -102,7 +103,7 @@ async function run(user,row,message){
 async function start(user,id,body){
   const request=v.job(body);
   return withControlLock(async()=>{
-    const hash=createHash('sha256').update(request.message).digest('hex');
+    const hash=createHash('sha256').update(request.payload.type==='text'?request.payload.message:JSON.stringify(request.payload)).digest('hex');
     const previous=await jobs().findOne({owner:owner(user),requestId:request.requestId});
     if(previous){if(previous.listId!==id||previous.messageHash!==hash)fail(409,'requestId already used for a different broadcast');return publicJob(previous);}
     if(stopping||wa.isPhoneBlocked(user.phone)||wa.getStatus(user.phone)!=='ready')fail(503,'WhatsApp session not ready');
@@ -113,10 +114,10 @@ async function start(user,id,body){
     const since=new Date(Date.now()-86400000);
     const usage=await jobs().aggregate([{$match:{owner:owner(user),createdAt:{$gte:since}}},{$group:{_id:null,total:{$sum:{$size:'$results'}}}}]).toArray();
     if((usage[0]?.total||0)+row.recipients.length>effective(user).dailyRecipients)fail(429,'Broadcast daily recipient limit reached');
-    const record={_id:randomUUID(),owner:owner(user),listId:id,listName:row.name,requestId:request.requestId,messageHash:hash,status:'queued',cancelRequested:false,createdAt:date(),expiresAt:new Date(Date.now()+effective(user).historyDays*86400000),results:row.recipients.map(x=>({phone:x.phone,status:'pending'}))};
+    const record={_id:randomUUID(),owner:owner(user),listId:id,listName:row.name,requestId:request.requestId,messageHash:hash,type:request.payload.type,status:'queued',cancelRequested:false,createdAt:date(),expiresAt:new Date(Date.now()+effective(user).historyDays*86400000),results:row.recipients.map(x=>({phone:x.phone,status:'pending'}))};
     await jobs().insertOne(record);
     active.set(owner(user),record._id);
-    void run(user,record,request.message).catch(()=>console.warn('[Broadcast] Job finalization unavailable'));
+    void run(user,record,request.payload).catch(()=>console.warn('[Broadcast] Job finalization unavailable'));
     return publicJob(record);
   });
 }
