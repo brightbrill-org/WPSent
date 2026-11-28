@@ -689,3 +689,7 @@ Example:
 ```
 
 All formats use the existing global and session pacing, consent/opt-out checks and cancellation. Job type and individual native message IDs are tracked; submitted is not delivered. The dashboard supports file selection, MIME and caption, contact/location fields and single/multiple-choice polls. A full contact picker and CSV import remain out of scope.
+
+### Administration workspace
+
+The `/admin` console provides Overview, Sessions, Sending policy and Administrators views. Overview reports registered, ready, not-ready and revoked sessions and registration capacity. Sessions supports client-side phone search, status and policy filters, sorting and 10/25/50/100-row pagination; each non-revoked phone has an Edit policy action. Session policy includes searchable phone selection and effective values. Refresh data reloads live status manually; the existing authenticated `/admin/api/phones` response remains backward-compatible with an additional `policySource` field (`inherited`, `custom`, or null for revoked). Pagination is local to the browser, not server-side. Existing authorization and confirmation requirements remain unchanged.

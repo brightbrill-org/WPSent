@@ -64,7 +64,7 @@ module.exports = function registerAdmin(router) {
   router.get('/admin/api/phones', requireAdmin, handler(async (req, res) => {
     const phones = await WpUser.find({}).select('phone createdAt lastSeen revokedAt revocationCompleteAt').sort({ createdAt: 1 }).lean();
     res.json({ limit: await store.getPhoneLimit(), activeCount: phones.filter(p => !p.revokedAt).length,
-      phones: phones.map(p => ({ phone: p.phone, createdAt: p.createdAt, lastSeen: p.lastSeen, revokedAt: p.revokedAt || null, revocationComplete: !!p.revocationCompleteAt, status: p.revokedAt ? 'revoked' : wa.getStatus(p.phone) })) });
+      phones: phones.map(p => ({ phone: p.phone, createdAt: p.createdAt, lastSeen: p.lastSeen, revokedAt: p.revokedAt || null, revocationComplete: !!p.revocationCompleteAt, status: p.revokedAt ? 'revoked' : wa.getStatus(p.phone), policySource: p.revokedAt ? null : (policy.hasOverride(p.phone) ? 'custom' : 'inherited') })) });
   }));
   router.put('/admin/api/phone-limit', requireAdmin, requireMutation, handler(async (req, res) => {
     await withControlLock(async () => { await store.assertActor(req.admin.email, tokenOf(req)); await store.setPhoneLimit(req.body?.limit); });
