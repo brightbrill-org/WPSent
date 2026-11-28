@@ -112,3 +112,38 @@ test('lazy preparation runs its known bundle loader only when job is absent',asy
   await run(phone,'create',request);await run(phone,'create',request);
   assert.equal(loads,1);
 });
+
+test('description preflight checks required modules before mutation',async()=>{
+  const sequence=[];
+  const {run}=fixture({setDescription:async value=>{sequence.push(value);return true;}},{
+    pupPage:{evaluate:async(fn,id)=>{assert.equal(id,groupId);assert.match(fn.toString(),/WAWebMsgKey/);assert.match(fn.toString(),/WAWebGroupModifyInfoJob/);sequence.push('preflight');return 'ready';}}
+  });
+  assert.equal((await run(phone,'description',req('description',{description:'New'}))).description,'New');
+  assert.deepEqual(sequence,['preflight','New']);
+});
+test('missing description dependency fails before mutation',async()=>{
+  const {run}=fixture({setDescription:()=>assert.fail('must not mutate')},{
+    pupPage:{evaluate:async()=> 'message_key_generator_unavailable'}
+  });
+  await assert.rejects(run(phone,'description',req('description',{description:'New'})),e=>e.code==='WA_GROUP_UNAVAILABLE'&&e.message.includes('message_key_generator_unavailable'));
+});
+test('native description errors become explicit group errors with no automatic retry',async()=>{
+  let calls=0;
+  const {run,group}=fixture({setDescription:async()=>{calls++;throw new TypeError('synthetic native failure');}});
+  await assert.rejects(run(phone,'description',req('description',{description:'New'})),{code:'WA_GROUP_FAILED'});
+  assert.equal(calls,1);
+  group.setDescription=async()=>{throw Error('Protocol error: Target closed');};
+  await assert.rejects(run(phone,'description',req('description',{description:'New'})),{code:'WA_GROUP_UNAVAILABLE'});
+});
+test('description preflight accepts a group without an existing description ID',async()=>{
+  const {run}=fixture({setDescription:async()=>true},{
+    pupPage:{evaluate:async(fn,id)=>{
+      const previous=global.window;
+      global.window={require:name=>({
+        WAWebWidFactory:{createWid(){}},WAWebMsgKey:{newId(){}},WAWebGroupModifyInfoJob:{setGroupDescription(){}}
+      })[name],WWebJS:{getChat:async()=>({groupMetadata:{}})}};
+      try{return await fn(id);}finally{if(previous===undefined)delete global.window;else global.window=previous;}
+    }}
+  });
+  assert.equal((await run(phone,'description',req('description',{description:''}))).description,'');
+});

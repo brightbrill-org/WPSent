@@ -108,6 +108,38 @@ async function prepareGroupCreation(client,guard){
   guard();
   if(result!=='ready')fail('WhatsApp group creation module unavailable ('+result+'); check WhatsApp Web compatibility','WA_GROUP_UNAVAILABLE');
 }
+// Check the exact dependencies used by GroupChat.setDescription in
+// whatsapp-web.js 1.34.8. This is read-only and does not generate IDs or
+// submit a mutation. No speculative internal API fallback is attempted.
+async function prepareDescription(client,id,guard){
+  if(!client.pupPage||typeof client.pupPage.evaluate!=='function')return;
+  guard();
+  let stage;
+  try{
+    stage=await client.pupPage.evaluate(async groupId=>{
+      const get=name=>{try{return window.require(name);}catch(_){return null;}};
+      if(typeof get('WAWebWidFactory')?.createWid!=='function')return 'wid_factory_unavailable';
+      if(typeof window.WWebJS?.getChat!=='function')return 'chat_lookup_unavailable';
+      if(typeof get('WAWebMsgKey')?.newId!=='function')return 'message_key_generator_unavailable';
+      if(typeof get('WAWebGroupModifyInfoJob')?.setGroupDescription!=='function')return 'description_job_unavailable';
+      let chat;
+      try{chat=await window.WWebJS.getChat(groupId,{getAsModel:false});}catch(_){return 'chat_lookup_failed';}
+      if(!chat?.groupMetadata)return 'group_metadata_unavailable';
+      // descId may legitimately be absent for a group without a description.
+      return 'ready';
+    },id);
+  }catch(e){
+    console.warn('[WA] Group description preparation error:',e?.message||String(e));
+    fail('WhatsApp group description preparation failed; check server logs','WA_GROUP_UNAVAILABLE');
+  }
+  guard();
+  const known=['wid_factory_unavailable','chat_lookup_unavailable','message_key_generator_unavailable','description_job_unavailable','chat_lookup_failed','group_metadata_unavailable'];
+  if(stage!=='ready'){
+    const reason=known.includes(stage)?stage:'unexpected_preparation_result';
+    console.warn('[WA] Group description preflight:',reason);
+    fail('WhatsApp group description unavailable ('+reason+'); check WhatsApp Web compatibility','WA_GROUP_UNAVAILABLE');
+  }
+}
 function createdGroupId(raw){
   const gid=raw?.gid;
   const serialized=wid(gid);
@@ -194,7 +226,22 @@ function createGroupActions({getSession,isBlocked,timeoutMs=45000,maxActive=4}){
       guard();
       if(action==='subject'||action==='description'){
         const key=action,method=action==='subject'?'setSubject':'setDescription';
-        if(await group[method](request[key])!==true)fail('WhatsApp did not confirm the group update','WA_GROUP_FAILED');
+        if(typeof group[method]!=='function')fail('WhatsApp group '+key+' method unavailable','WA_GROUP_UNAVAILABLE');
+        if(action==='description')await prepareDescription(client,request.groupId,guard);
+        guard();
+        let updated;
+        try{updated=await group[method](request[key]);}
+        catch(e){
+          // Keep technical details in server logs. Never expose arbitrary
+          // browser errors, group text or internal stack traces to API users.
+          console.error('[WA] Group '+key+' update failed:',e?.stack||e?.message||String(e));
+          const detail=String(e?.message||'');
+          if(/Target closed|Session closed|detached Frame|Execution context was destroyed|Protocol error/i.test(detail)){
+            fail('WhatsApp connection interrupted during group '+key+' update; verify actual group state before retrying','WA_GROUP_UNAVAILABLE');
+          }
+          fail('WhatsApp group '+key+' update failed; check server logs and verify group state before retrying','WA_GROUP_FAILED');
+        }
+        if(updated!==true)fail('WhatsApp did not confirm the group '+key+' update','WA_GROUP_FAILED');
         return {...result,[key]:request[key]};
       }
       if(action==='invite'){
