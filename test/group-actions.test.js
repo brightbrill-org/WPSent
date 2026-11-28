@@ -73,3 +73,42 @@ test('timeout prevents a late mutation and retains busy slot',async()=>{
   await assert.rejects(run(phone,'invite',req('invite')),{code:'WA_GROUP_BUSY'});
   release(group);await new Promise(r=>setImmediate(r));
 });
+
+test('creation loads lazy WhatsApp group module before native mutation',async()=>{
+  const sequence=[];
+  const {run}=fixture({},{
+    pupPage:{evaluate:async fn=>{sequence.push('prepare');assert.match(fn.toString(),/WAWebNewGroupFlowLoadable/);return 'ready';}},
+    createGroup:async()=>{sequence.push('create');return {gid:{user:'123-456',server:'g.us'},participants:{[other]:{statusCode:200}}};}
+  });
+  const result=await run(phone,'create',parseGroupRequest('create',null,{subject:'Test',participants:[other]}));
+  assert.equal(result.groupId,groupId);assert.deepEqual(sequence,['prepare','create']);
+});
+test('missing lazy module stops creation before any mutation',async()=>{
+  const {run}=fixture({},{
+    pupPage:{evaluate:async()=> 'loader_unavailable'},
+    createGroup:()=>assert.fail('must not create')
+  });
+  await assert.rejects(run(phone,'create',parseGroupRequest('create',null,{subject:'Test'})),{code:'WA_GROUP_UNAVAILABLE'});
+});
+test('native string creation errors are exposed without retrying',async()=>{
+  let calls=0;
+  const {run}=fixture({},{
+    createGroup:async()=>{calls++;return 'CreateGroupError: An unknown error occupied while creating a group';}
+  });
+  await assert.rejects(run(phone,'create',parseGroupRequest('create',null,{subject:'Test'})),e=>e.code==='WA_GROUP_FAILED'&&e.message.includes('CreateGroupError:'));
+  assert.equal(calls,1);
+});
+test('lazy preparation runs its known bundle loader only when job is absent',async()=>{
+  let loaded=false,loads=0;
+  const {run}=fixture({},{
+    pupPage:{evaluate:async fn=>{
+      const previous=global.window;
+      global.window={require:name=>name==='WAWebGroupCreateJob'?(loaded?{createGroup(){}}:undefined):name==='WAWebNewGroupFlowLoadable'?{requireBundle:async()=>{loads++;loaded=true;}}:undefined};
+      try{return await fn();}finally{if(previous===undefined)delete global.window;else global.window=previous;}
+    }},
+    createGroup:async()=>({gid:{_serialized:groupId},participants:{}})
+  });
+  const request=parseGroupRequest('create',null,{subject:'Test'});
+  await run(phone,'create',request);await run(phone,'create',request);
+  assert.equal(loads,1);
+});

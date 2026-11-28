@@ -87,6 +87,34 @@ function participantResults(raw,requested){
   for(const id of requested)if(!reported.has(id))results.push({id,code:null,added:false,alreadyMember:false,inviteRequired:false,inviteSent:false,isGroupCreator:false});
   return results;
 }
+// WhatsApp Web can lazy-load the group creation job only when the New
+// Group UI opens. Prepare that module without creating a group or sending
+// invitations. Internal modules are version-dependent; fail before mutation
+// if the known loader exists but cannot make the job available.
+async function prepareGroupCreation(client,guard){
+  if(!client.pupPage||typeof client.pupPage.evaluate!=='function')return;
+  guard();
+  let result;
+  try{
+    result=await client.pupPage.evaluate(async()=>{
+      const get=name=>{try{return window.require(name);}catch(_){return null;}};
+      if(typeof get('WAWebGroupCreateJob')?.createGroup==='function')return 'ready';
+      const loader=get('WAWebNewGroupFlowLoadable');
+      if(typeof loader?.requireBundle!=='function')return 'loader_unavailable';
+      try{await loader.requireBundle();}catch(_){return 'load_failed';}
+      return typeof get('WAWebGroupCreateJob')?.createGroup==='function'?'ready':'job_unavailable';
+    });
+  }catch(_){fail('WhatsApp group creation preparation failed; check session readiness','WA_GROUP_UNAVAILABLE');}
+  guard();
+  if(result!=='ready')fail('WhatsApp group creation module unavailable ('+result+'); check WhatsApp Web compatibility','WA_GROUP_UNAVAILABLE');
+}
+function createdGroupId(raw){
+  const gid=raw?.gid;
+  const serialized=wid(gid);
+  if(groupPattern.test(serialized||''))return serialized;
+  if(gid?.server==='g.us'&&typeof gid.user==='string'&&groupPattern.test(gid.user+'@g.us'))return gid.user+'@g.us';
+  return null;
+}
 function createGroupActions({getSession,isBlocked,timeoutMs=45000,maxActive=4}){
   let active=0;const busy=new WeakSet();
   async function run(phone,action,request){
@@ -104,9 +132,21 @@ function createGroupActions({getSession,isBlocked,timeoutMs=45000,maxActive=4}){
         // The linked account is already the creator.
         const requested=request.participants.filter(id=>!ids.has(id));
         guard();
+        await prepareGroupCreation(client,guard);
+        guard();
         const raw=await client.createGroup(request.subject,requested,{autoSendInviteV4:false});
-        const id=wid(raw?.gid);
-        if(!groupPattern.test(id||''))fail('WhatsApp did not confirm group creation; verify before retrying','WA_GROUP_FAILED');
+        // Upstream documents string errors. Do not treat them as malformed
+        // success results or retry a possibly completed mutation automatically.
+        if(typeof raw==='string'){
+          const reason=/^CreateGroupError:/i.test(raw)?raw.replace(/[\x00-\x1f\x7f]/g,' ').slice(0,240):'Unexpected library error response';
+          fail('WhatsApp group creation failed: '+reason+'; verify group before retrying','WA_GROUP_FAILED');
+        }
+        const id=createdGroupId(raw);
+        if(!id){
+          const shape=raw&&typeof raw==='object'?'object without valid gid':'empty or unexpected response';
+          console.warn('[WA] Group creation unconfirmed:',shape);
+          fail('WhatsApp did not confirm group creation ('+shape+'); verify before retrying','WA_GROUP_FAILED');
+        }
         const results=participantResults(raw.participants||{},requested);
         return {ok:true,groupId:id,subject:request.subject,participants:results,allAdded:results.filter(r=>!r.isGroupCreator).every(r=>r.added||r.alreadyMember)};
       }
