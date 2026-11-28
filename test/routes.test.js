@@ -334,3 +334,13 @@ test('native media documentation and all three Postman send requests are present
     assert.equal(request.url,'{{baseUrl}}/send');assert.ok(JSON.parse(request.body.raw)[kind]);
   }
 });
+
+test('documentation sidebar links cover every main section exactly once and in content order',()=>{
+  const html=docsHTML('https://example.test');
+  const sidebar=html.split('<div class="sb">')[1].split('</div>')[0];
+  const doc=html.split('<div class="doc">')[1];
+  const links=Array.from(sidebar.matchAll(/href="#([^"]+)"/g),m=>m[1]);
+  const headings=Array.from(doc.matchAll(/<h[12]\s+id="([^"]+)"/g),m=>m[1]);
+  assert.equal(new Set(links).size,links.length);
+  assert.deepEqual(links,headings);
+});

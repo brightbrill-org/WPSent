@@ -80,21 +80,23 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#intro">Introduction</a>
     <a href="#auth">Authentication</a>
     <a href="#self-host">Self-Hosting</a>
-    <h3>API Reference</h3>
+    <h3>Messaging APIs</h3>
     <a href="#send">Send Message</a>
-    <a href="#native-media">Images, videos and voice notes</a>
-    <a href="#seen-reply">Mark as seen &amp; reply</a>
-    <a href="#logs">Message Logs</a>
-    <a href="#status">Status</a>
+    <a href="#native-media">Images, Videos &amp; Voice Notes</a>
+    <a href="#seen-reply">Mark as Seen &amp; Reply</a>
+    <a href="#logs">Message Logs &amp; Media Download</a>
+    <h3>Account &amp; Directory APIs</h3>
+    <a href="#status">Connection Status</a>
     <a href="#lid">Resolve LID</a>
+    <a href="#directory">Chats &amp; Contacts</a>
+    <h3>Group &amp; Webhook APIs</h3>
+    <a href="#groups">Group Management</a>
     <a href="#webhooks">Webhooks</a>
-    <h3>Guides</h3>
+    <h3>Guides &amp; Support</h3>
     <a href="#examples">Code Examples</a>
     <a href="#types">Message Types</a>
     <a href="#admin">Administration</a>
-    <a href="#directory">Chats &amp; contacts</a>
-    <a href="#groups">Group management</a>
-    <a href="#contact">Contact</a>
+    <a href="#contact">Contact &amp; Support</a>
   </div>
   <div class="doc">
     <h1 id="intro">WPSent API Docs</h1>
