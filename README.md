@@ -302,3 +302,15 @@ Authenticated `POST /send` accepts exactly one of `image`, `video`, `voiceNote`:
 ## Complete API reference
 
 See [docs/api.md](docs/api.md) for the Markdown API reference, including native media, group management, webhooks and administration.
+
+### Poll management
+
+Send via authenticated POST /send with either nested poll or legacy top-level question/options. Example:
+```json
+{"to":"919000000001","poll":{"question":"Choose a product","options":["E360","HireHub"],"allowMultipleAnswers":true}}
+```
+2–12 unique options (max 100 characters each), question max 255, default single-choice. Returns ok, chatId, messageId, type, poll and logId. Incoming polls use message_received with type poll and nested poll metadata when available. Register a separate webhook with event poll_vote_updated; fields include pollMessageId, chatId, voterId, voterPhone, voterLid, selectedOptions, selectionComplete, withdrawn, votedAt and timestamp. Empty selectedOptions with withdrawn true means deselection. GET webhook structured values are JSON strings; POST recommended. Best-effort delivery, no replay or durable vote history.
+
+GET /polls/:messageId/results returns live session-visible poll question, allowMultipleAnswers, totalVoters, options (name/votes) and voters (current selections including withdrawn entries). Use full serialized WhatsApp message ID, URL encoded as needed. Counts use latest entry per raw voter ID; no assumption that different LID and phone IDs are the same person. Multiple-choice percentages need not sum to 100. Missing/incomplete data fails explicitly where detectable; results depend on WhatsApp Web's local data, not guaranteed complete server history. At most 20 LID lookups. 
+
+POST /polls/:messageId/vote with {"selectedOptions":["E360"]} submits the linked account's own vote; [] withdraws. Response status submitted, confirmed false: native method returns no confirmation; check results before retrying. Poll operations require Ready, are account scoped, bounded to one per session and four globally, deadline 30 seconds. HTTP 400 invalid, 404 poll unavailable, 502 unconfirmed/incomplete, 503 unavailable/busy, 504 timeout. No automatic retries.

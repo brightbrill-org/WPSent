@@ -3,7 +3,7 @@ const MESSAGE_RECEIVED='message_received';
 const AUTH_RESCAN_REQUIRED='auth_rescan_required';
 function normalizeWebhookEvent(raw){
   if(raw===undefined)return MESSAGE_RECEIVED;
-  if(raw===MESSAGE_RECEIVED||raw===AUTH_RESCAN_REQUIRED)return raw;
+  if(raw===MESSAGE_RECEIVED||raw===AUTH_RESCAN_REQUIRED||raw==='poll_vote_updated')return raw;
   return null;
 }
 function selectWebhooks(hooks,event){

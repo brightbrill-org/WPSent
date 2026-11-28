@@ -277,7 +277,7 @@
             "url": "{{baseUrl}}/send",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"question\": \"Choose an option\",\n  \"options\": [\n    \"A\",\n    \"B\"\n  ]\n}",
+              "raw": "{\n  \"to\": \"{{recipient}}\",\n  \"question\": \"Choose an option\",\n  \"options\": [\n    \"A\",\n    \"B\"\n  ],\n  \"allowMultipleAnswers\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -639,6 +639,84 @@
               }
             ],
             "url": "{{baseUrl}}/webhooks/{{webhookId}}"
+          }
+        },
+        {
+          "name": "Poll results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/polls/{{messageId}}/results"
+          }
+        },
+        {
+          "name": "Vote on poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/polls/{{messageId}}/vote",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selectedOptions\": [\n    \"E360\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sends a real WhatsApp message."
+          }
+        },
+        {
+          "name": "Add poll vote webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-client-id",
+                "value": "{{clientId}}"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"{{webhookUrl}}\",\n  \"method\": \"POST\",\n  \"label\": \"Poll votes\",\n  \"event\": \"poll_vote_updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         }
       ]

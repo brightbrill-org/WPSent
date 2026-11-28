@@ -66,6 +66,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
   <a class="nav-logo" href="/"><div class="nav-icon">💬</div>WPSent</a>
   <div class="nav-links">
     <a class="nav-link on" href="/docs">Docs</a>
+    <a class="nav-link" href="/dashboard">Dashboard</a>
     <a class="nav-link" href="/admin">Admin</a>
     <a class="nav-link gh" href="${CONFIG.GITHUB_URL}" target="_blank">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -82,6 +83,7 @@ td:first-child{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(-
     <a href="#self-host">Self-Hosting</a>
     <h3>Messaging APIs</h3>
     <a href="#send">Send Message</a>
+    <a href="#polls">Poll Management</a>
     <a href="#native-media">Images, Videos &amp; Voice Notes</a>
     <a href="#seen-reply">Mark as Seen &amp; Reply</a>
     <a href="#logs">Message Logs &amp; Media Download</a>
@@ -200,6 +202,14 @@ npm start              # visit http://localhost:3000</pre>
   }
 }</pre>
     <p>Both examples use POST <code>/send</code> with headers <code>x-client-id</code>, <code>x-api-key</code> and <code>Content-Type: application/json</code>. Replace sample details with authorized values. Use one payload type per request when sending a contact or location. Invalid or mixed payloads return 400; send failures return 500 with a log ID. Verify delivery before retrying.</p>
+    <h2 id="polls">Poll Management</h2>
+    <p>POST /send supports nested poll or legacy question/options. Set allowMultipleAnswers to true for multiple choices. 2–12 unique options, max 100 characters each, question max 255. Response includes the WhatsApp messageId.</p>
+    <pre>{"to":"919000000001","poll":{"question":"Choose a product","options":["E360","HireHub"],"allowMultipleAnswers":true}}</pre>
+    <p>Incoming polls use message_received with type poll and structured poll metadata when available. Register poll_vote_updated for current selections, voter identity and withdrawn votes. POST webhooks recommended; structured values in GET webhooks are JSON strings. Best-effort delivery.</p>
+    <pre>GET /polls/:messageId/results
+POST /polls/:messageId/vote
+{"selectedOptions":["E360"]}</pre>
+    <p>Results reflect local WhatsApp Web data and include option counts and voters, not guaranteed complete history. Empty selections withdraw a vote. Vote response status submitted, confirmed false, because native dispatch has no confirmation. Ready required; one operation per session, four globally, 30-second deadline. 400 invalid, 404 unavailable poll, 502 incomplete or unconfirmed, 503 busy/not ready, 504 timeout. Verify state before retrying.</p>
     <h2 id="native-media">Send and receive images, videos and voice notes</h2>
     <p><span class="mt post">POST</span><code>/send</code> supports native media using exactly one of these JSON objects. Use existing API authentication headers.</p>
     <pre>{ "to": "919000000001", "image": {
@@ -354,7 +364,7 @@ GET /groups/123456789-123456789@g.us/invite</pre>
 x-client-id: YOUR_CID
 x-api-key: YOUR_KEY
 { "url": "https://yoursite.com/hook?key=abc", "method": "POST", "label": "My CRM", "event": "message_received" }</pre>
-    <p>Supported events: <code>message_received</code> (default) and <code>auth_rescan_required</code>. Unsupported values return HTTP 400.</p>
+    <p>Supported events: <code>message_received</code> (default) <code>auth_rescan_required</code> and <code>poll_vote_updated</code>. Unsupported values return HTTP 400.</p>
     <h3>Toggle / Delete</h3>
     <pre><span class="mt ptch">PATCH</span> /webhooks/:id  { "active": false }
 <span class="mt del">DELETE</span> /webhooks/:id</pre>

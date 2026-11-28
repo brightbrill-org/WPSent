@@ -5,6 +5,7 @@ const { createDirectoryReader } = require('./utils/directory');
 const { createMessageActions, messageIdOf } = require('./utils/messageActions');
 const {nativeOptions,confirmNativeMedia,inboundMediaIdentity}=require('./utils/nativeMedia');
 const {createGroupActions}=require('./utils/groupActions');
+const {createPollActions,pollInfo,projectVote}=require('./utils/pollActions');
 const { createInboundCapture } = require('./utils/inboundMedia');
 const inboundMediaStore = require('./services/inboundMediaStore');
 const captureInboundMedia = createInboundCapture({store: inboundMediaStore.store});
@@ -120,7 +121,7 @@ async function fireWebhooks(userId, payload) {
         await axios.post(wh.url, payload, { timeout: 8000 });
       } else {
         const sep    = wh.url.includes('?') ? '&' : '?';
-        const params = new URLSearchParams(Object.entries(payload).filter(([, value]) => value != null)).toString();
+        const params = new URLSearchParams(Object.entries(payload).filter(([, value]) => value != null).map(([key,value])=>[key,typeof value==='object'?JSON.stringify(value):value])).toString();
         await axios.get(`${wh.url}${sep}${params}`, { timeout: 8000 });
       }
       console.log(`[WH] OK: ${wh.url}`);
@@ -150,6 +151,7 @@ function notifyRescan(phone,session,reason) {
 
 function classifyMessage(msg) {
   const t = msg.type;
+  if (t === 'poll_creation') return 'poll';
   if (t === 'reaction') return 'reaction';
   if (t === 'sticker')  return 'sticker';
   if (t === 'image')    return 'image';
@@ -162,6 +164,7 @@ function classifyMessage(msg) {
 }
 
 function extractBody(msg) {
+  if(msg.type==='poll_creation')return msg.pollName||'[Poll]';
   if (msg.type === 'reaction') {
     const emoji = msg.reaction?.text || msg._data?.reactionText || '👍';
     return `[Reaction: ${emoji}]`;
@@ -436,7 +439,7 @@ function createSession(phone) {
       const media = await captureInboundMedia(msg, user._id, allowed);
       if (!allowed()) return;
       const messageId = messageIdOf(msg);
-      const identity = {chatId: msg.from, ...(messageId ? {messageId} : {}), ...inboundMediaIdentity(msg)};
+      const identity = {chatId: msg.from, ...(messageId ? {messageId} : {}), ...inboundMediaIdentity(msg), ...(pollInfo(msg)?{poll:pollInfo(msg)}:{})};
       const log  = await MessageLog.create({ userId: user._id, direction: 'inbound', ...sender, ...participant, ...identity, body, type, status: 'received', ...(media || {}) });
       await pruneOldLogs(user._id);
       emitLog(user._id.toString(), log.toObject());
@@ -444,6 +447,19 @@ function createSession(phone) {
     } catch (e) { console.error('[WA] message handler error:', e.message); }
   });
 
+  client.on('vote_update', async vote=>{
+    try{
+      const allowed=()=>!shuttingDown&&!session.destroyed&&!session.initFailed&&session.status==='ready'&&sessions.get(phone)===session&&!isPhoneBlocked(phone);
+      if(!allowed())return;
+      const parent=vote.parentMessage,id=messageIdOf(parent),poll=pollInfo(parent);
+      if(!id||!poll)return;
+      const selection=projectVote(vote,parent);
+      if(!selection)return;
+      const user=await WpUser.findOne({phone,revokedAt:null});if(!user||!allowed())return;
+      const sender=await resolveSender(selection.voterId);if(!allowed())return;
+      await fireWebhooks(user._id,{event:'poll_vote_updated',pollMessageId:id,chatId:parent.fromMe?parent.to:parent.from,...selection,voterPhone:sender.fromPhone,voterLid:sender.fromLid,timestamp:selection.votedAt||new Date().toISOString()});
+    }catch(e){console.warn('[WA] Poll vote notification unavailable');}
+  });
   client.on('message_reaction', async (reaction) => {
     try {
       if (session.destroyed || session.initFailed || session.status !== 'ready') return;
@@ -507,6 +523,7 @@ async function resolveLid(phone, lid) {
 function getSession(phone) { return sessions.get(phone) || null; }
 const listDirectory = createDirectoryReader({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 const {markSeen,reply:replyMessage}=createMessageActions({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
+const pollActions=createPollActions({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 const groupAction=createGroupActions({getSession,isBlocked:phone=>shuttingDown||isPhoneBlocked(phone)});
 function getStatus(phone)  { return sessions.get(phone)?.status || 'not_started'; }
 function getPairedAt(phone) { return pairedAtMap.get(phone) || 0; }
@@ -629,6 +646,6 @@ async function restoreAllSessions() {
 
 module.exports = {
   createSession, destroySession, rescanSession, getSession, getStatus, getPairedAt, getOwnId, blockPhone, isPhoneBlocked,
-  onQR, offQR, sendMessage, sendNativeMedia, resolveLid, listDirectory, markSeen, replyMessage, groupAction, restoreAllSessions,
+  onQR, offQR, sendMessage, sendNativeMedia, resolveLid, listDirectory, markSeen, replyMessage, groupAction, pollActions, restoreAllSessions,
   pruneOldLogs, sanitizePhone, onLog, offLog, emitLog, shutdown
 };

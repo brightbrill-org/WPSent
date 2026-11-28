@@ -11,7 +11,7 @@ module.exports = function registerWebhooks(router) {
     const method = str(req.body?.method).toUpperCase() === 'GET' ? 'GET' : 'POST';
     const label  = str(req.body?.label);
     const event = normalizeWebhookEvent(req.body?.event);
-    if (!event) return res.status(400).json({ error: 'event must be message_received or auth_rescan_required' });
+    if (!event) return res.status(400).json({ error: 'event must be message_received, auth_rescan_required or poll_vote_updated' });
     if (!url) return res.status(400).json({ error: 'url required' });
     if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'url must start with http:// or https://' });
     const user = await WpUser.findByIdAndUpdate(req.wpUser._id, { $push: { webhooks: { url, method, label, event } } }, { new: true });
